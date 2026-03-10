@@ -11,7 +11,7 @@
   --danger: #ef4444;
   --danger-light: #fca5a5;
 
-  --bg-main: #f1f5f9;
+  --bg-main: #f8fafc;
   --bg-card: #ffffff;
   --bg-sidebar: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
 
@@ -20,13 +20,21 @@
   --text-muted: #94a3b8;
 
   --border: #e2e8f0;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --border-light: #f1f5f9;
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.06), 0 8px 10px -6px rgb(0 0 0 / 0.04);
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.03), 0 0 0 1px rgb(0 0 0 / 0.02);
+  --shadow-card-hover: 0 8px 25px -5px rgb(0 0 0 / 0.08), 0 4px 10px -3px rgb(0 0 0 / 0.03);
 
   --radius: 0.75rem;
   --radius-sm: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
   --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @theme inline {
@@ -186,12 +194,12 @@ body {
 
 /* ── Premium Card Hover ── */
 .card-hover {
-  transition: transform var(--transition), box-shadow var(--transition);
+  transition: transform var(--transition), box-shadow var(--transition-slow);
 }
 
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* ── Glass effect ── */
@@ -221,12 +229,17 @@ body {
 
 /* ── Stat card icon container ── */
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform var(--transition);
+}
+
+.card-hover:hover .stat-icon {
+  transform: scale(1.08);
 }
 
 /* ── Bar chart bars ── */
@@ -326,15 +339,15 @@ body {
 /* ── Form inputs consistent styling ── */
 .input-field {
   display: flex;
-  height: 42px;
+  height: 44px;
   width: 100%;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   border: 1.5px solid var(--border);
   background: white;
-  padding: 0 12px;
-  font-size: 1rem;
+  padding: 0 14px;
+  font-size: 0.9375rem;
   color: var(--text-primary);
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -356,7 +369,8 @@ body {
 
 .input-field:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+  background-color: #fefefe;
 }
 
 .input-label {

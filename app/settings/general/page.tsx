@@ -10,7 +10,9 @@ import {
     createNewSchoolYear, getStudents
 } from '@/lib/storage'
 import { ClassInfo, Semester, GradeThresholds, DEFAULT_GRADE_THRESHOLDS, getConductGrade, Student, ThresholdSet } from '@/types'
-import { Plus, Pencil, Trash2, School, Save, GraduationCap, Calendar, Upload, X, ShieldCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, School, Save, GraduationCap, Calendar, Upload, X, ShieldCheck, UserCog } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { changeUsername } from '@/lib/auth'
 
 // Helper function to read file as base64
 const readFileAsBase64 = (file: File): Promise<string> => {
@@ -37,6 +39,10 @@ export default function GeneralSettingsPage() {
     const [editingSemester, setEditingSemester] = useState<Semester | null>(null)
     const [semesterForm, setSemesterForm] = useState({ name: '', startDate: '', endDate: '' })
 
+    // Change Username
+    const { user, logout } = useAuth()
+    const [usernameForm, setUsernameForm] = useState('')
+
     const { showToast, ToastComponent } = useToast()
 
     useEffect(() => {
@@ -57,6 +63,12 @@ export default function GeneralSettingsPage() {
         setReady(true)
     }
 
+    useEffect(() => {
+        if (user && user.role === 'teacher') {
+            setUsernameForm(user.username)
+        }
+    }, [user])
+
     const handleSaveClassInfo = async () => {
         await saveClassInfo(classInfo)
         showToast('Đã lưu thông tin lớp!')
@@ -72,6 +84,28 @@ export default function GeneralSettingsPage() {
         }
         await saveGradeThresholds(gradeThresholds)
         showToast('Đã lưu mức xếp loại rèn luyện!')
+    }
+
+    const handleSaveUsername = async () => {
+        if (!user || user.role !== 'teacher') return;
+        if (!usernameForm.trim()) {
+            showToast('Tên đăng nhập không được để trống!', 'error');
+            return;
+        }
+        if (usernameForm.trim() === user.username) {
+            showToast('Tên đăng nhập không thay đổi!', 'info');
+            return;
+        }
+        const success = await changeUsername(user.id, usernameForm.trim());
+        if (success) {
+            showToast('Đã đổi tài khoản thành công! Bạn sẽ bị đăng xuất để đăng nhập lại bằng Tên đăng nhập mới.');
+            setTimeout(() => {
+                logout();
+                window.location.href = '/login';
+            }, 3000);
+        } else {
+            showToast('Đổi tài khoản thất bại. Tên đăng nhập này có thể đã tồn tại!', 'error');
+        }
     }
 
     const handleCreateNewYear = async () => {
@@ -364,6 +398,41 @@ export default function GeneralSettingsPage() {
                     </button>
                 </CardContent>
             </Card>
+
+            {user?.role === 'teacher' && (
+                <Card className="animate-slide-up" style={{ animationDelay: '25ms' }}>
+                    <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <UserCog className="h-4 w-4 text-indigo-500" />
+                            Đổi Tên đăng nhập (Tài khoản GVCN)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-slate-500 mb-4">
+                            Ghi chú: Sau khi đổi tên đăng nhập thành công, bạn sẽ được yêu cầu đăng nhập lại với Tên đăng nhập mới.
+                        </p>
+                        <div className="max-w-sm">
+                            <label className="input-label">Tên đăng nhập hiện tại: <span className="font-bold">{user.username}</span></label>
+                            <div className="flex items-center gap-3 mt-2">
+                                <input
+                                    type="text"
+                                    value={usernameForm}
+                                    onChange={e => setUsernameForm(e.target.value)}
+                                    className="input-field max-w-[200px]"
+                                    placeholder="Tên đăng nhập mới"
+                                />
+                                <button
+                                    onClick={handleSaveUsername}
+                                    disabled={!usernameForm.trim() || usernameForm.trim() === user.username}
+                                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Đổi Tên đăng nhập
+                                </button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="animate-slide-up" style={{ animationDelay: '50ms' }}>
                 <CardHeader>

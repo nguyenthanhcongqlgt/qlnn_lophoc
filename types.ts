@@ -2,6 +2,7 @@
 
 export interface Student {
   id: string;
+  username?: string; // Tên đăng nhập (hs_hoten)
   name: string;
   dateOfBirth?: string; // DD/MM/YYYY
   team: string; // Tổ (e.g., "Tổ 1", "Tổ 2")
@@ -36,6 +37,20 @@ export interface IncidentType {
   point: number; // Negative for violations, positive for achievements
   type: LogType;
 }
+
+export interface Position {
+  id: string;
+  name: string;        // e.g. "Lớp trưởng", "Bí thư"
+  canCreateLog: boolean; // Có quyền lập phiếu nề nếp
+}
+
+export const DEFAULT_POSITIONS: Position[] = [
+  { id: 'pos_lt', name: 'Lớp trưởng', canCreateLog: true },
+  { id: 'pos_lp', name: 'Lớp phó', canCreateLog: true },
+  { id: 'pos_bt', name: 'Bí thư', canCreateLog: true },
+  { id: 'pos_tt', name: 'Tổ trưởng', canCreateLog: true },
+  { id: 'pos_hs', name: 'Học sinh', canCreateLog: false },
+];
 
 export interface Semester {
   id: string;
@@ -103,11 +118,18 @@ export function getConductGrade(score: number, thresholds: ThresholdSet): Conduc
 // ── Điểm danh ──
 
 export type AttendanceStatus = 'present' | 'absent_excused' | 'absent_unexcused';
+export type AttendanceSession = 'morning' | 'afternoon';
+
+export const ATTENDANCE_SESSION_LABELS: Record<AttendanceSession, string> = {
+  morning: 'Buổi Sáng',
+  afternoon: 'Buổi Chiều',
+};
 
 export interface AttendanceRecord {
   id: string;
   studentId: string;
   date: string; // YYYY-MM-DD
+  session: AttendanceSession; // 'morning' | 'afternoon'
   status: AttendanceStatus;
   note?: string;
 }
@@ -142,6 +164,8 @@ export interface UserAccount {
   displayName: string;
   studentId?: string; // Liên kết với học sinh (cho student/team_leader/class_leader)
   team?: string;      // Tổ (cho team_leader)
+  canCreateLog?: boolean; // Được phép lập phiếu nề nếp (theo chức vụ)
+  positionName?: string;  // Tên chức vụ cụ thể (vd: "Cờ đỏ", "Lớp trưởng")
 }
 
 export interface AuthSession {

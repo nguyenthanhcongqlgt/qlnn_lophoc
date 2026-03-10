@@ -68,9 +68,10 @@ CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     date TEXT NOT NULL,
+    session TEXT NOT NULL DEFAULT 'morning' CHECK (session IN ('morning', 'afternoon')),
     status TEXT NOT NULL CHECK (status IN ('present', 'absent_excused', 'absent_unexcused')),
     note TEXT,
-    UNIQUE(student_id, date)
+    UNIQUE(student_id, date, session)
 );
 
 -- 8. Môn học
@@ -88,6 +89,13 @@ CREATE TABLE IF NOT EXISTS accounts (
     display_name TEXT NOT NULL,
     student_id TEXT,
     team TEXT
+);
+
+-- 9. Chức vụ
+CREATE TABLE IF NOT EXISTS positions (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    can_create_log BOOLEAN NOT NULL DEFAULT false
 );
 
 -- ===== SEED DATA =====
@@ -166,19 +174,19 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Tài khoản học sinh
 INSERT INTO accounts (id, username, password, role, display_name, student_id, team) VALUES
-    ('acc_HS001', 'HS001', '123456', 'student', 'Nguyễn Văn An', 'HS001', 'Tổ 1'),
-    ('acc_HS002', 'HS002', '123456', 'student', 'Trần Thị Bình', 'HS002', 'Tổ 1'),
-    ('acc_HS003', 'HS003', '123456', 'student', 'Lê Văn Cường', 'HS003', 'Tổ 1'),
-    ('acc_HS004', 'HS004', '123456', 'student', 'Phạm Thị Dung', 'HS004', 'Tổ 2'),
-    ('acc_HS005', 'HS005', '123456', 'student', 'Hoàng Văn Em', 'HS005', 'Tổ 2'),
-    ('acc_HS006', 'HS006', '123456', 'student', 'Võ Thị Phương', 'HS006', 'Tổ 2'),
-    ('acc_HS007', 'HS007', '123456', 'student', 'Đặng Quốc Hùng', 'HS007', 'Tổ 3'),
-    ('acc_HS008', 'HS008', '123456', 'student', 'Bùi Thị Hoa', 'HS008', 'Tổ 3'),
-    ('acc_HS009', 'HS009', '123456', 'student', 'Ngô Thanh Tùng', 'HS009', 'Tổ 3'),
-    ('acc_HS010', 'HS010', '123456', 'student', 'Lý Thị Kim', 'HS010', 'Tổ 4'),
-    ('acc_HS011', 'HS011', '123456', 'student', 'Trịnh Minh Đức', 'HS011', 'Tổ 4'),
-    ('acc_HS012', 'HS012', '123456', 'student', 'Huỳnh Thị Lan', 'HS012', 'Tổ 4'),
-    ('acc_HS013', 'HS013', '123456', 'student', 'Mai Xuân Trường', 'HS013', 'Tổ 1'),
-    ('acc_HS014', 'HS014', '123456', 'student', 'Đỗ Thị Ngọc', 'HS014', 'Tổ 2'),
-    ('acc_HS015', 'HS015', '123456', 'student', 'Phan Văn Khải', 'HS015', 'Tổ 3')
+    ('acc_HS001', 'hs_nguyenvanan', '123456', 'student', 'Nguyễn Văn An', 'HS001', 'Tổ 1'),
+    ('acc_HS002', 'hs_tranthibinh', '123456', 'student', 'Trần Thị Bình', 'HS002', 'Tổ 1'),
+    ('acc_HS003', 'hs_levancuong', '123456', 'student', 'Lê Văn Cường', 'HS003', 'Tổ 1'),
+    ('acc_HS004', 'hs_phamthidung', '123456', 'student', 'Phạm Thị Dung', 'HS004', 'Tổ 2'),
+    ('acc_HS005', 'hs_hoangvanem', '123456', 'student', 'Hoàng Văn Em', 'HS005', 'Tổ 2'),
+    ('acc_HS006', 'hs_vothiphuong', '123456', 'student', 'Võ Thị Phương', 'HS006', 'Tổ 2'),
+    ('acc_HS007', 'hs_dangquochung', '123456', 'student', 'Đặng Quốc Hùng', 'HS007', 'Tổ 3'),
+    ('acc_HS008', 'hs_buithihoa', '123456', 'student', 'Bùi Thị Hoa', 'HS008', 'Tổ 3'),
+    ('acc_HS009', 'hs_ngothanhtung', '123456', 'student', 'Ngô Thanh Tùng', 'HS009', 'Tổ 3'),
+    ('acc_HS010', 'hs_lythikim', '123456', 'student', 'Lý Thị Kim', 'HS010', 'Tổ 4'),
+    ('acc_HS011', 'hs_trinhminhduc', '123456', 'student', 'Trịnh Minh Đức', 'HS011', 'Tổ 4'),
+    ('acc_HS012', 'hs_huynhthilan', '123456', 'student', 'Huỳnh Thị Lan', 'HS012', 'Tổ 4'),
+    ('acc_HS013', 'hs_maixuantruong', '123456', 'student', 'Mai Xuân Trường', 'HS013', 'Tổ 1'),
+    ('acc_HS014', 'hs_dothingoc', '123456', 'student', 'Đỗ Thị Ngọc', 'HS014', 'Tổ 2'),
+    ('acc_HS015', 'hs_phanvankhai', '123456', 'student', 'Phan Văn Khải', 'HS015', 'Tổ 3')
 ON CONFLICT (id) DO NOTHING;

@@ -3,8 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
-import { initializeData, getStudentsWithScores, getLogs, getClassInfo, getGradeThresholds } from '@/lib/storage'
-import { LogEntry, StudentWithScore, ClassInfo, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS } from '@/types'
+import { initializeData, getStudentsWithScores, getLogs, getClassInfo, getGradeThresholds, getAttendance } from '@/lib/storage'
+import { LogEntry, StudentWithScore, ClassInfo, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord } from '@/types'
 import { Calendar, CalendarDays, CalendarRange, GraduationCap, X, Users, User, BookOpen, Printer, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, isWithinInterval, parseISO } from 'date-fns'
 import Link from 'next/link'
@@ -51,6 +51,7 @@ export default function StudentDetailedReportPage() {
     const [students, setStudents] = useState<StudentWithScore[]>([])
     const [classInfo, setClassInfo] = useState<ClassInfo>({ schoolName: '', name: '', schoolYear: '', teacherName: '', semesters: [] })
     const [thresholds, setThresholds] = useState<GradeThresholds>(DEFAULT_GRADE_THRESHOLDS)
+    const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
     const [ready, setReady] = useState(false)
     const [selectedSemester, setSelectedSemester] = useState<string>('')
     const [thresholdType, setThresholdType] = useState<keyof GradeThresholds>('weekly')
@@ -81,16 +82,18 @@ export default function StudentDetailedReportPage() {
     }, [])
 
     const refresh = async () => {
-        const [logsData, studentsData, classInfoData, thresholdsData] = await Promise.all([
+        const [logsData, studentsData, classInfoData, thresholdsData, attendanceData] = await Promise.all([
             getLogs(),
             getStudentsWithScores(),
             getClassInfo(),
-            getGradeThresholds()
+            getGradeThresholds(),
+            getAttendance()
         ])
         setLogs(logsData)
         setStudents(studentsData.filter(s => s.status !== 'dropped_out'))
         setClassInfo(classInfoData)
         setThresholds(thresholdsData)
+        setAttendance(attendanceData)
         setReady(true)
 
         if (classInfoData?.semesters && classInfoData.semesters.length > 0) {
@@ -146,7 +149,7 @@ export default function StudentDetailedReportPage() {
 
     // Group logs by student
     const studentBreakdown = useMemo(() => {
-        const activeStudents = new Map<string, { student: StudentWithScore; logs: LogEntry[]; violations: number; achievements: number; points: number }>()
+        const activeStudents = new Map<string, { student: StudentWithScore; logs: LogEntry[]; violations: number; achievements: number; points: number; absentExcused: number; absentUnexcused: number }>()
 
         // Initialize missing students from filter, or just only show students who have logs or match standard filter
         let currentStudents = students
@@ -154,7 +157,7 @@ export default function StudentDetailedReportPage() {
         if (studentFilter) currentStudents = currentStudents.filter(s => s.id === studentFilter)
 
         currentStudents.forEach(s => {
-            activeStudents.set(s.id, { student: s, logs: [], violations: 0, achievements: 0, points: 0 })
+            activeStudents.set(s.id, { student: s, logs: [], violations: 0, achievements: 0, points: 0, absentExcused: 0, absentUnexcused: 0 })
         })
 
         filteredLogs.forEach(l => {
@@ -167,12 +170,30 @@ export default function StudentDetailedReportPage() {
             }
         })
 
+        const filteredAttendance = attendance.filter(a => {
+            if (a.date < startDate || a.date > endDate) return false
+            if (teamFilter) {
+                const student = students.find(s => s.id === a.studentId)
+                if (student?.team !== teamFilter) return false
+            }
+            if (studentFilter && a.studentId !== studentFilter) return false
+            return true
+        })
+
+        filteredAttendance.forEach(a => {
+            const entry = activeStudents.get(a.studentId)
+            if (entry) {
+                if (a.status === 'absent_excused') entry.absentExcused += 0.5;
+                if (a.status === 'absent_unexcused') entry.absentUnexcused += 0.5;
+            }
+        })
+
         // Sort by student name, and keep only students with logs IF no specific student filter is on
         const arr = Array.from(activeStudents.values())
-            .filter(e => studentFilter ? true : e.logs.length > 0) // Hide empty students unless explicitly searched
+            .filter(e => studentFilter ? true : (e.logs.length > 0 || e.absentExcused > 0 || e.absentUnexcused > 0)) // Hide empty students unless explicitly searched
             .sort((a, b) => a.student.name.localeCompare(b.student.name))
         return arr
-    }, [filteredLogs, students, teamFilter, studentFilter])
+    }, [filteredLogs, students, teamFilter, studentFilter, attendance, startDate, endDate])
 
     const totalStudents = studentBreakdown.length
     const studentPagesCount = studentsLimit === 'all' ? 1 : Math.ceil(totalStudents / studentsLimit)
@@ -295,6 +316,8 @@ export default function StudentDetailedReportPage() {
                             new TextRun({ text: `${data.student.name}    ` }),
                             new TextRun({ text: "Ngày sinh: ", bold: true }),
                             new TextRun({ text: `${data.student.dateOfBirth || '........'}    ` }),
+                            new TextRun({ text: "Ngày nghỉ: ", bold: true }),
+                            new TextRun({ text: `${data.absentExcused} phép, ${data.absentUnexcused} không phép    ` }),
                             new TextRun({ text: "Tổ: ", bold: true }),
                             new TextRun({ text: data.student.team })
                         ],
@@ -598,20 +621,20 @@ export default function StudentDetailedReportPage() {
                     <div key={data.student.id} className="student-report-page bg-white p-6 sm:p-8 rounded-xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 print:m-0 break-after-page print:bg-white text-black">
 
                         {/* Custom Print Header (Only visible on print/similar to page template) */}
-                        <div className="flex justify-between items-start mb-4 print:mb-6">
-                            <div className="flex items-center gap-2 flex-1">
+                        <div className="flex flex-col sm:flex-row justify-between items-start mb-4 print:mb-6 gap-3 sm:gap-2">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
                                 {classInfo.printLogo !== false && classInfo.logo && (
-                                    <img src={classInfo.logo} alt="Logo trường" className="w-[80px] h-[80px] object-contain shrink-0" />
+                                    <img src={classInfo.logo} alt="Logo trường" className="w-[60px] h-[60px] sm:w-[80px] sm:h-[80px] object-contain shrink-0" />
                                 )}
-                                <div className="text-center">
-                                    <h3 className="font-bold text-[13px] uppercase m-0 leading-tight">{classInfo.schoolName || 'TRƯỜNG ............................'}</h3>
-                                    <p className="text-[13px] m-0 mt-1 leading-tight">LỚP: {classInfo.name}</p>
-                                    <p className="text-[13px] uppercase m-0 mt-1 leading-tight">NĂM HỌC: {classInfo.schoolYear}</p>
+                                <div className="text-center min-w-0">
+                                    <h3 className="font-bold text-[11px] sm:text-[13px] uppercase m-0 leading-tight">{classInfo.schoolName || 'TRƯỜNG ............................'}</h3>
+                                    <p className="text-[11px] sm:text-[13px] m-0 mt-1 leading-tight">LỚP: {classInfo.name}</p>
+                                    <p className="text-[11px] sm:text-[13px] uppercase m-0 mt-1 leading-tight">NĂM HỌC: {classInfo.schoolYear}</p>
                                 </div>
                             </div>
-                            <div className="text-center w-[280px] shrink-0">
-                                <h4 className="font-bold text-[13px] uppercase m-0 leading-tight">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
-                                <p className="text-[13px] font-bold m-0 mt-1 underline underline-offset-4 leading-tight">Độc lập - Tự do - Hạnh phúc</p>
+                            <div className="text-center w-full sm:w-[280px] shrink-0">
+                                <h4 className="font-bold text-[11px] sm:text-[13px] uppercase m-0 leading-tight">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
+                                <p className="text-[11px] sm:text-[13px] font-bold m-0 mt-1 underline underline-offset-4 leading-tight">Độc lập - Tự do - Hạnh phúc</p>
                             </div>
                         </div>
 
@@ -623,12 +646,13 @@ export default function StudentDetailedReportPage() {
                         </div>
 
                         {/* Student Meta */}
-                        <div className="flex justify-between items-center mb-4 text-sm bg-slate-50 print:bg-transparent p-3 print:p-0 rounded-lg">
-                            <div className="flex items-center gap-6">
-                                <p className="font-bold text-lg text-slate-800 print:text-black">Họ và tên: {data.student.name}</p>
-                                <p className="font-medium text-slate-700 print:text-black">Ngày sinh: {data.student.dateOfBirth || '........'}</p>
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 text-sm bg-slate-50 print:bg-transparent p-3 print:p-0 rounded-lg gap-2 sm:gap-0">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:gap-x-6 min-w-0">
+                                <p className="font-bold text-base sm:text-lg text-slate-800 print:text-black whitespace-nowrap">Họ và tên: {data.student.name}</p>
+                                <p className="font-medium text-xs sm:text-sm text-slate-700 print:text-black whitespace-nowrap">Ngày sinh: {data.student.dateOfBirth || '........'}</p>
+                                <p className="font-medium text-xs sm:text-sm text-slate-700 print:text-black whitespace-nowrap">Nghỉ: <span className="text-amber-600 font-semibold">{data.absentExcused}</span> P, <span className="text-red-600 font-semibold">{data.absentUnexcused}</span> KP</p>
                             </div>
-                            <p className="font-semibold text-slate-600 print:text-black border print:border-none px-3 py-1 rounded-full">{data.student.team}</p>
+                            <p className="font-semibold text-slate-600 print:text-black border print:border-none px-3 py-1 rounded-full shrink-0 self-start sm:self-auto">{data.student.team}</p>
                         </div>
 
                         {/* Data Table */}
@@ -664,21 +688,21 @@ export default function StudentDetailedReportPage() {
                         </table>
 
                         {/* Summary Block */}
-                        <div className="flex justify-between items-center bg-slate-50 print:bg-white p-4 print:p-0 print:border-y print:py-2 border-slate-200 rounded-lg mb-8">
-                            <div>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 print:bg-white p-3 sm:p-4 print:p-0 print:border-y print:py-2 border-slate-200 rounded-lg mb-8 gap-3 sm:gap-0">
+                            <div className="flex items-center gap-4 sm:gap-0 sm:flex-col sm:items-start">
                                 <p className="text-sm font-medium">Vi phạm: <span className="text-red-600 font-bold">{data.violations}</span></p>
                                 <p className="text-sm font-medium">Việc tốt: <span className="text-emerald-600 font-bold">{data.achievements}</span></p>
                             </div>
-                            <div className="text-right flex items-center gap-6">
+                            <div className="text-right flex items-center gap-4 sm:gap-6">
                                 <div>
-                                    <p className="text-sm font-medium shrink-0">Tổng điểm thu được:</p>
-                                    <p className={`text-xl font-bold ${data.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                    <p className="text-xs sm:text-sm font-medium shrink-0">Tổng điểm:</p>
+                                    <p className={`text-lg sm:text-xl font-bold ${data.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                         {data.points > 0 ? '+' : ''}{data.points}đ
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium">Xếp loại:</p>
-                                    <p className={`text-xl font-bold ${getConductGrade(data.points + 100, thresholds[thresholdType]).color}`}>
+                                    <p className="text-xs sm:text-sm font-medium">Xếp loại:</p>
+                                    <p className={`text-lg sm:text-xl font-bold ${getConductGrade(data.points + 100, thresholds[thresholdType]).color}`}>
                                         {getConductGrade(data.points + 100, thresholds[thresholdType]).name}
                                     </p>
                                 </div>

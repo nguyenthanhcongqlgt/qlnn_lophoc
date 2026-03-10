@@ -48,20 +48,49 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
                 }
                 const { password: _, ...safeUser } = user;
-                return NextResponse.json({ user: safeUser });
+
+                // Resolve canCreateLog and positionName from position
+                let canCreateLog = false;
+                let positionName: string | undefined = undefined;
+                if (safeUser.studentId) {
+                    try {
+                        const { rows: students } = await sql`SELECT position FROM students WHERE id = ${safeUser.studentId}`;
+                        const position = students[0]?.position;
+                        if (position) {
+                            positionName = position;
+                            const { rows: pos } = await sql`SELECT can_create_log FROM positions WHERE name = ${position}`;
+                            canCreateLog = pos[0]?.can_create_log ?? false;
+                        }
+                    } catch { /* positions table may not exist */ }
+                }
+
+                return NextResponse.json({ user: { ...safeUser, canCreateLog, positionName } });
             }
 
             // In-memory fallback
             const store = getStore();
-            const user = Object.values(store.accounts).find(
-                (a: any) => a.username.toLowerCase() === username.toLowerCase()
-            ) as any;
-            if (!user || user.password !== password) {
+            const account = Object.values(store.accounts).find(a => String(a.username).toLowerCase() === username.toLowerCase());
+
+            if (!account || account.password !== password) {
                 return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
             }
-            const { password: _, ...safeUser } = user;
-            return NextResponse.json({ user: safeUser });
+
+            const { password: _, ...safeUser } = account as any;
+
+            let canCreateLog = false;
+            let positionName: string | undefined = undefined;
+            if (safeUser.studentId && store.students[safeUser.studentId]) {
+                const position = store.students[safeUser.studentId].position;
+                if (position) {
+                    positionName = position;
+                    const posDef = Object.values(store.positions || {}).find((p: any) => p.name === position);
+                    canCreateLog = posDef?.canCreateLog ?? false;
+                }
+            }
+
+            return NextResponse.json({ user: { ...safeUser, canCreateLog, positionName } });
         }
+
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     } catch (error) {
@@ -114,6 +143,31 @@ export async function PUT(req: NextRequest) {
                     return NextResponse.json({ error: 'Wrong old password' }, { status: 400 });
                 }
                 store.accounts[id].password = newPassword;
+            }
+            return NextResponse.json({ success: true });
+        }
+
+        if (action === 'changeUsername') {
+            const { newUsername } = body;
+            if (!newUsername || newUsername.trim() === '') {
+                return NextResponse.json({ error: 'Tên đăng nhập không được để trống' }, { status: 400 });
+            }
+            if (hasPostgres()) {
+                const { sql } = await import('@vercel/postgres');
+                const existing = await sql`SELECT id FROM accounts WHERE username = ${newUsername}`;
+                if ((existing.rowCount ?? 0) > 0) {
+                    return NextResponse.json({ error: 'Tên đăng nhập đã tồn tại trong hệ thống' }, { status: 400 });
+                }
+                await sql`UPDATE accounts SET username = ${newUsername} WHERE id = ${id}`;
+            } else {
+                const store = getStore();
+                const exists = Object.values(store.accounts).some(acc => acc.username === newUsername);
+                if (exists) {
+                    return NextResponse.json({ error: 'Tên đăng nhập đã tồn tại trong hệ thống' }, { status: 400 });
+                }
+                if (store.accounts[id]) {
+                    store.accounts[id].username = newUsername;
+                }
             }
             return NextResponse.json({ success: true });
         }

@@ -101,10 +101,10 @@ export default function Dashboard() {
             {/* Header */}
             <div className="animate-fade-in flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+                    <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
                         Tổng quan — <span className="bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent">{className}</span>
                     </h1>
-                    <p className="text-slate-500 mt-1.5 text-sm font-medium flex items-center gap-1.5">
+                    <p className="text-slate-400 mt-2 text-sm font-medium flex items-center gap-2">
                         <Clock className="w-4 h-4" />
                         {new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/-/g, '/')}
                     </p>
@@ -373,9 +373,9 @@ function StatCard({ title, value, subtitle, icon, iconBg, valueColor }: {
             <CardContent className="pt-5">
                 <div className="flex items-start justify-between">
                     <div>
-                        <p className="text-sm font-medium text-slate-500">{title}</p>
-                        <p className={`text-3xl font-bold mt-1 ${valueColor || 'text-slate-900'}`}>{value}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+                        <p className="text-[13px] font-medium text-slate-400 uppercase tracking-wide">{title}</p>
+                        <p className={`text-3xl font-extrabold mt-1.5 tracking-tight ${valueColor || 'text-slate-900'}`}>{value}</p>
+                        <p className="text-xs text-slate-400 mt-1 font-medium">{subtitle}</p>
                     </div>
                     <div className={`stat-icon ${iconBg}`}>
                         {icon}

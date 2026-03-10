@@ -39,5 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-node_modules/
-.next/
+
+# local development database (file-based fallback for no-Postgres mode)
+.local-db.json

@@ -21,9 +21,13 @@ export default function DataSettingsPage() {
     const restoreFileRef = useRef<HTMLInputElement>(null)
 
     const { showToast, ToastComponent } = useToast()
+    const [isResetting, setIsResetting] = useState(false)
 
     const handleReset = async () => {
+        if (isResetting) return
+        setIsResetting(true)
         try {
+            console.log('--- Triggering resetAllData ---')
             await resetAllData()
             showToast('Đã xoá toàn bộ dữ liệu thành công!', 'success')
             setShowResetConfirm(false)
@@ -33,6 +37,8 @@ export default function DataSettingsPage() {
         } catch (e) {
             console.error('Lỗi khi xoá dữ liệu:', e)
             showToast('Đã xảy ra lỗi khi xoá dữ liệu', 'error')
+        } finally {
+            setIsResetting(false)
         }
     }
 
@@ -191,10 +197,11 @@ export default function DataSettingsPage() {
                     </p>
                     <button
                         onClick={() => setShowResetConfirm(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors"
+                        disabled={isResetting}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
                     >
-                        <RotateCcw className="h-4 w-4" />
-                        Xoá toàn bộ dữ liệu
+                        <RotateCcw className={`h-4 w-4 ${isResetting ? 'animate-spin' : ''}`} />
+                        {isResetting ? 'Đang xoá...' : 'Xoá toàn bộ dữ liệu'}
                     </button>
                 </CardContent>
             </Card>

@@ -225,11 +225,17 @@ export async function getAttendance(): Promise<AttendanceRecord[]> {
     }
 }
 
-export async function setAttendanceForDate(studentId: string, date: string, status: AttendanceRecord['status'], note?: string): Promise<void> {
+export async function setAttendanceForDate(
+    studentId: string,
+    date: string,
+    status: AttendanceRecord['status'],
+    note?: string,
+    session: 'morning' | 'afternoon' = 'morning'
+): Promise<void> {
     await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, date, status, note }),
+        body: JSON.stringify({ studentId, date, session, status, note }),
     });
 }
 
@@ -300,6 +306,37 @@ export async function createNewSchoolYear(schoolYear: string): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'newSchoolYear', data: { schoolYear } }),
     });
+}
+
+// ── Positions (Chức vụ) ──
+
+export async function getPositions(): Promise<{ id: string; name: string; canCreateLog: boolean }[]> {
+    try {
+        const res = await fetch('/api/positions', { cache: 'no-store' });
+        return await res.json();
+    } catch {
+        return [];
+    }
+}
+
+export async function addPosition(id: string, name: string, canCreateLog: boolean): Promise<void> {
+    await fetch('/api/positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, canCreateLog }),
+    });
+}
+
+export async function updatePosition(id: string, name: string, canCreateLog: boolean): Promise<void> {
+    await fetch('/api/positions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, canCreateLog }),
+    });
+}
+
+export async function deletePosition(id: string): Promise<void> {
+    await fetch(`/api/positions?id=${id}`, { method: 'DELETE' });
 }
 
 // ── Batch Import ──

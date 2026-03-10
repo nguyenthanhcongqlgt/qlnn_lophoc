@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { hasPostgres, getStore } from '@/lib/memory-store';
+import { generateBaseUsername } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,12 +24,24 @@ export async function GET() {
             await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS date_of_birth VARCHAR(20)`;
 
             const { rows } = await sql`
-                SELECT id, name, team, position, initial_score AS "initialScore", note, status, dropout_date AS "dropoutDate", date_of_birth AS "dateOfBirth"
-                FROM students ORDER BY id
+                SELECT s.id, s.name, s.team, s.position, s.initial_score AS "initialScore", s.note, s.status, s.dropout_date AS "dropoutDate", s.date_of_birth AS "dateOfBirth", a.username
+                FROM students s
+                LEFT JOIN accounts a ON s.id = a.student_id
+                ORDER BY s.id
             `;
             return NextResponse.json(rows);
         }
-        return NextResponse.json(Object.values(getStore().students));
+
+        const store = getStore();
+        const accountsList = Object.values(store.accounts);
+        const studentsWithUsernames = Object.values(store.students).map(s => {
+            const acc = accountsList.find((a: any) => a.studentId === s.id);
+            return {
+                ...s,
+                username: acc ? acc.username : s.id
+            };
+        });
+        return NextResponse.json(studentsWithUsernames);
     } catch (error) {
         console.error('GET /api/students error:', error);
         return NextResponse.json([], { status: 500 });
@@ -39,12 +52,37 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
+        // Pre-fetch all existing usernames to ensure uniqueness
+        let existingUsernames = new Set<string>();
+        if (hasPostgres()) {
+            const { sql } = await import('@vercel/postgres');
+            const { rows } = await sql`SELECT username FROM accounts`;
+            existingUsernames = new Set(rows.map(r => String(r.username).toLowerCase()));
+        } else {
+            const store = getStore();
+            existingUsernames = new Set(Object.values(store.accounts).map((a: any) => String(a.username).toLowerCase()));
+        }
+
+        const getUniqueUsername = (name: string): string => {
+            const base = generateBaseUsername(name) || `hs_${Date.now()}`;
+            let finalName = base;
+            let counter = 1;
+            while (existingUsernames.has(finalName)) {
+                finalName = `${base}${String(counter).padStart(2, '0')}`;
+                counter++;
+            }
+            existingUsernames.add(finalName);
+            return finalName;
+        };
+
         // Batch import
         if (body.batch && Array.isArray(body.batch)) {
             const results = [];
             for (const item of body.batch) {
                 const id = item.id || `HS${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
                 const { name, team, position = null, initialScore = 100 } = item;
+                const uniqueUsername = getUniqueUsername(name);
+
                 if (hasPostgres()) {
                     const { sql } = await import('@vercel/postgres');
                     await sql`
@@ -57,14 +95,14 @@ export async function POST(req: NextRequest) {
                     const derivedRole = getRoleFromPosition(position);
                     await sql`
                         INSERT INTO accounts (id, username, password, role, display_name, student_id, team)
-                        VALUES (${accId}, ${id}, '123456', ${derivedRole}, ${name}, ${id}, ${team})
+                        VALUES (${accId}, ${uniqueUsername}, '123456', ${derivedRole}, ${name}, ${id}, ${team})
                         ON CONFLICT (id) DO UPDATE SET display_name = ${name}, team = ${team}, role = ${derivedRole}
                     `;
                 } else {
                     const store = getStore();
                     store.students[id] = { id, name, team, position, initialScore, note: null, status: 'active' };
                     store.accounts[`acc_${id}`] = {
-                        id: `acc_${id}`, username: id, password: '123456',
+                        id: `acc_${id}`, username: uniqueUsername, password: '123456',
                         role: getRoleFromPosition(position) as any, displayName: name, studentId: id, team,
                     };
                 }
@@ -110,6 +148,8 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        const uniqueUsername = getUniqueUsername(name);
+
         if (hasPostgres()) {
             const { sql } = await import('@vercel/postgres');
             await sql`
@@ -120,14 +160,14 @@ export async function POST(req: NextRequest) {
             const derivedRole = getRoleFromPosition(position || null);
             await sql`
                 INSERT INTO accounts (id, username, password, role, display_name, student_id, team)
-                VALUES (${accId}, ${id}, '123456', ${derivedRole}, ${name}, ${id}, ${team})
+                VALUES (${accId}, ${uniqueUsername}, '123456', ${derivedRole}, ${name}, ${id}, ${team})
                 ON CONFLICT (id) DO UPDATE SET display_name = ${name}, team = ${team}, role = ${derivedRole}
             `;
         } else {
             const store = getStore();
             store.students[id] = { id, name, team, position: position || null, initialScore, note: note || null, dateOfBirth: dateOfBirth || undefined };
             store.accounts[`acc_${id}`] = {
-                id: `acc_${id}`, username: id, password: '123456',
+                id: `acc_${id}`, username: uniqueUsername, password: '123456',
                 role: getRoleFromPosition(position || null) as any, displayName: name, studentId: id, team,
             };
         }
@@ -192,16 +232,16 @@ export async function PUT(req: NextRequest) {
             const { sql } = await import('@vercel/postgres');
             if (data.name !== undefined) await sql`UPDATE students SET name = ${data.name} WHERE id = ${id}`;
             if (data.team !== undefined) await sql`UPDATE students SET team = ${data.team} WHERE id = ${id}`;
-            if (data.position !== undefined) await sql`UPDATE students SET position = ${data.position} WHERE id = ${id}`;
+            if ('position' in data) await sql`UPDATE students SET position = ${data.position ?? null} WHERE id = ${id}`;
             if (data.initialScore !== undefined) await sql`UPDATE students SET initial_score = ${data.initialScore} WHERE id = ${id}`;
             if (data.note !== undefined) await sql`UPDATE students SET note = ${data.note} WHERE id = ${id}`;
             if (data.dateOfBirth !== undefined) await sql`UPDATE students SET date_of_birth = ${data.dateOfBirth} WHERE id = ${id}`;
 
             // Sync account role & team & name
-            if (data.position !== undefined || data.team !== undefined || data.name !== undefined) {
+            if ('position' in data || data.team !== undefined || data.name !== undefined) {
                 const accId = `acc_${id}`;
-                if (data.position !== undefined) {
-                    const derivedRole = getRoleFromPosition(data.position);
+                if ('position' in data) {
+                    const derivedRole = getRoleFromPosition(data.position ?? null);
                     await sql`UPDATE accounts SET role = ${derivedRole} WHERE id = ${accId}`;
                 }
                 if (data.team !== undefined) {
@@ -214,11 +254,17 @@ export async function PUT(req: NextRequest) {
         } else {
             const store = getStore();
             if (store.students[id]) {
-                Object.assign(store.students[id], data);
+                // Handle position=null explicitly (clear position)
+                if ('position' in data) {
+                    store.students[id].position = data.position ?? null;
+                }
+                // Apply all other fields (excluding position, already handled)
+                const { position: _pos, ...rest } = data;
+                Object.assign(store.students[id], rest);
             }
             if (store.accounts[`acc_${id}`]) {
-                if (data.position !== undefined) {
-                    store.accounts[`acc_${id}`].role = getRoleFromPosition(data.position) as any;
+                if ('position' in data) {
+                    store.accounts[`acc_${id}`].role = getRoleFromPosition(data.position ?? null) as any;
                 }
                 if (data.team !== undefined) {
                     store.accounts[`acc_${id}`].team = data.team;
@@ -258,6 +304,32 @@ export async function DELETE(req: NextRequest) {
                 for (const accId in store.accounts) {
                     if (store.accounts[accId].role === 'teacher') {
                         teacherAccounts[accId] = store.accounts[accId];
+                    }
+                }
+                store.accounts = teacherAccounts;
+            }
+            return NextResponse.json({ success: true });
+        }
+
+        if (deleteAll === 'true') {
+            if (hasPostgres()) {
+                const { sql } = await import('@vercel/postgres');
+                await sql`DELETE FROM students`;
+                await sql`DELETE FROM log_entries`;
+                await sql`DELETE FROM attendance`;
+                // Keep ONLY teacher accounts
+                await sql`DELETE FROM accounts WHERE role != 'teacher'`;
+            } else {
+                const store = getStore();
+                store.students = {};
+                store.log_entries = {};
+                store.attendance = {};
+
+                // Clear all student accounts
+                const teacherAccounts: Record<string, any> = {};
+                for (const id in store.accounts) {
+                    if (store.accounts[id].role === 'teacher') {
+                        teacherAccounts[id] = store.accounts[id];
                     }
                 }
                 store.accounts = teacherAccounts;

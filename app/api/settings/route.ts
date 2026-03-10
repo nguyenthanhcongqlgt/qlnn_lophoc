@@ -128,17 +128,32 @@ export async function PUT(req: NextRequest) {
                 resetStoreForNewYear(schoolYear, true);
             }
         } else if (type === 'resetAllData') {
+            console.log('--- API: Received resetAllData request ---');
             if (hasPostgres()) {
                 const { sql } = await import('@vercel/postgres');
-                // Danger Zone Wipe: Clear everything except the initial teacher account and school setting metadata (retain name, keep it clean)
-                await sql`DELETE FROM log_entries`;
-                await sql`DELETE FROM attendance`;
-                await sql`DELETE FROM students`;
-                await sql`DELETE FROM accounts WHERE role != 'teacher'`;
-                await sql`DELETE FROM incident_types`;
-                await sql`DELETE FROM subjects`;
+                try {
+                    console.log('--- STARTING DANGER WIPE (Postgres) ---');
+                    await sql`DELETE FROM log_entries`;
+                    console.log('log_entries cleared');
+                    await sql`DELETE FROM attendance`;
+                    console.log('attendance cleared');
+                    await sql`DELETE FROM accounts WHERE role != 'teacher'`;
+                    console.log('accounts cleared');
+                    await sql`DELETE FROM students`;
+                    console.log('students cleared');
+                    await sql`DELETE FROM incident_types`;
+                    console.log('incident_types cleared');
+                    await sql`DELETE FROM subjects`;
+                    console.log('subjects cleared');
+                    await sql`DELETE FROM positions`;
+                    console.log('positions cleared');
+                } catch (e) {
+                    console.error('DANGER WIPE FAILED AT SOME POINT:', e);
+                    throw e;
+                }
 
                 // Re-seed default subjects
+                console.log('Re-seeding subjects...');
                 await sql`INSERT INTO subjects (id, name) VALUES
                     ('SUB_01', 'Ngữ văn'), ('SUB_02', 'Toán'), ('SUB_03', 'Lịch sử'), ('SUB_04', 'Địa lý'),
                     ('SUB_05', 'GDKTPL'), ('SUB_06', 'GDTC'), ('SUB_07', 'Vật lý'), ('SUB_08', 'Hóa học'),
@@ -146,6 +161,7 @@ export async function PUT(req: NextRequest) {
                 `;
 
                 // Re-seed default incidents
+                console.log('Re-seeding incidents...');
                 await sql`INSERT INTO incident_types (id, content, point, type) VALUES
                     ('V01', 'Đi học muộn', -2, 'violation'), ('V02', 'Không thuộc bài', -5, 'violation'),
                     ('V03', 'Mất trật tự trong lớp', -2, 'violation'), ('V04', 'Không mặc đồng phục', -2, 'violation'),
@@ -156,6 +172,15 @@ export async function PUT(req: NextRequest) {
                     ('A05', 'Tham gia hoạt động phong trào', 3, 'achievement'), ('A06', 'Vệ sinh lớp tốt', 2, 'achievement')
                 `;
 
+                // Re-seed default positions
+                console.log('Re-seeding positions...');
+                await sql`INSERT INTO positions (id, name, can_create_log) VALUES
+                    ('pos_lt', 'Lớp trưởng', true), ('pos_bt', 'Bí thư', true),
+                    ('pos_lpht', 'Lớp phó học tập', true), ('pos_lptm', 'Lớp phó thẩm mỹ', true),
+                    ('pos_lpld', 'Lớp phó lao động', true), ('pos_lpxd', 'Lớp phó văn thể mỹ', true),
+                    ('pos_tt', 'Tổ trưởng', true), ('pos_hs', 'Học sinh', false)
+                `;
+
                 // Keep the default teacher account
                 const resetYear = '2025 - 2026';
                 const defaultSemesters = [
@@ -163,7 +188,9 @@ export async function PUT(req: NextRequest) {
                     { id: 'sem_2_2026', name: 'Học kỳ II', startDate: '2026-01-01', endDate: '2026-05-30' }
                 ];
                 await sql`UPDATE class_info SET authorized_students = '[]', school_year = ${resetYear}, semesters = ${JSON.stringify(defaultSemesters)} WHERE id = 1`;
+                console.log('Class info updated');
             } else {
+                console.log('--- STARTING DANGER WIPE (Memory) ---');
                 const store = getStore();
                 // Reset standard elements
                 resetStoreForNewYear('2025 - 2026', false);
@@ -198,6 +225,14 @@ export async function PUT(req: NextRequest) {
                     'A05': { id: 'A05', content: 'Tham gia hoạt động phong trào', point: 3, type: 'achievement' },
                     'A06': { id: 'A06', content: 'Vệ sinh lớp tốt', point: 2, type: 'achievement' }
                 };
+                store.positions = {
+                    'pos_lt': { id: 'pos_lt', name: 'Lớp trưởng', canCreateLog: true },
+                    'pos_bt': { id: 'pos_bt', name: 'Bí thư', canCreateLog: true },
+                    'pos_lpht': { id: 'pos_lpht', name: 'Lớp phó học tập', canCreateLog: true },
+                    'pos_tt': { id: 'pos_tt', name: 'Tổ trưởng', canCreateLog: true },
+                    'pos_hs': { id: 'pos_hs', name: 'Học sinh', canCreateLog: false },
+                };
+                console.log('--- DANGER WIPE COMPLETE (Memory) ---');
             }
             // revalidate the cache heavily for Next.js to drop previous static states
             revalidatePath('/', 'layout');

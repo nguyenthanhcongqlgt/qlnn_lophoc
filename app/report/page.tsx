@@ -7,12 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog, Dialog } from '@/components/ui/dialog'
 import {
-    initializeData, getStudentsWithScores, getLogs, deleteLog, getStudents, getClassInfo, getGradeThresholds
+    initializeData, getStudentsWithScores, getLogs, deleteLog, getStudents, getClassInfo, getGradeThresholds, getAttendance
 } from '@/lib/storage'
-import { LogEntry, StudentWithScore, Student, ClassInfo, Semester, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS } from '@/types'
+import { LogEntry, StudentWithScore, Student, ClassInfo, Semester, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord } from '@/types'
 import {
     Calendar, Download, AlertTriangle, Award, TrendingDown, Trash2,
-    CalendarDays, CalendarRange, GraduationCap, X, Users, Filter, User, Printer, FileSpreadsheet, BookOpen, Contact, ChevronLeft, ChevronRight
+    CalendarDays, CalendarRange, GraduationCap, X, Users, Filter, User, Printer, FileSpreadsheet, BookOpen, Contact, ChevronLeft, ChevronRight, ClipboardCheck, Sun, Moon
 } from 'lucide-react'
 import { sortByName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -57,6 +57,7 @@ function getToday(): string {
 export default function ReportPage() {
     const [logs, setLogs] = useState<LogEntry[]>([])
     const [students, setStudents] = useState<StudentWithScore[]>([])
+    const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
     const [classInfo, setClassInfo] = useState<ClassInfo>({ schoolName: '', name: '', schoolYear: '', teacherName: '', semesters: [] })
     const [thresholds, setThresholds] = useState<GradeThresholds>(DEFAULT_GRADE_THRESHOLDS)
     const [ready, setReady] = useState(false)
@@ -114,16 +115,18 @@ export default function ReportPage() {
     }, [])
 
     const refresh = async () => {
-        const [logsData, studentsData, classInfoData, thresholdsData] = await Promise.all([
+        const [logsData, studentsData, classInfoData, thresholdsData, attendanceData] = await Promise.all([
             getLogs(),
             getStudentsWithScores(),
             getClassInfo(),
-            getGradeThresholds()
+            getGradeThresholds(),
+            getAttendance()
         ])
         setLogs(logsData)
         setStudents(studentsData.filter(s => s.status !== 'dropped_out'))
         setClassInfo(classInfoData)
         setThresholds(thresholdsData)
+        setAttendance(attendanceData)
         setReady(true)
 
         // Select the current semester if defined, otherwise month
@@ -187,6 +190,19 @@ export default function ReportPage() {
             })
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     }, [logs, startDate, endDate, teamStudentIds, studentFilter, subjectFilter, user, students])
+
+    // Attendance stats in date range
+    const attendanceStats = useMemo(() => {
+        const inRange = attendance.filter(r => r.date >= startDate && r.date <= endDate)
+        const totalExcused = inRange.filter(r => r.status === 'absent_excused').length
+        const totalUnexcused = inRange.filter(r => r.status === 'absent_unexcused').length
+        const morningExcused = inRange.filter(r => (r.session || 'morning') === 'morning' && r.status === 'absent_excused').length
+        const morningUnexcused = inRange.filter(r => (r.session || 'morning') === 'morning' && r.status === 'absent_unexcused').length
+        const afternoonExcused = inRange.filter(r => r.session === 'afternoon' && r.status === 'absent_excused').length
+        const afternoonUnexcused = inRange.filter(r => r.session === 'afternoon' && r.status === 'absent_unexcused').length
+        const hasAfternoon = inRange.some(r => r.session === 'afternoon')
+        return { totalExcused, totalUnexcused, morningExcused, morningUnexcused, afternoonExcused, afternoonUnexcused, hasAfternoon, totalAbsent: totalExcused + totalUnexcused }
+    }, [attendance, startDate, endDate])
 
     // Summary stats
     const violationLogs = filteredLogs.filter(l => l.type === 'violation')
@@ -720,79 +736,132 @@ export default function ReportPage() {
                 </Card>
             </div>
 
-            {/* Team Breakdown — only when viewing all teams */}
-            {!teamFilter && teams.length > 0 && filteredLogs.length > 0 && (
-                <Card className="animate-slide-up" style={{ animationDelay: '150ms' }}>
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Users className="h-4 w-4 text-indigo-500" />
-                            Tổng hợp theo tổ
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Tổ</TableHead>
-                                        <TableHead className="text-center">Tổng vi phạm</TableHead>
-                                        <TableHead className="text-center">Tổng việc tốt</TableHead>
-                                        <TableHead className="text-right">Tổng điểm c/trừ</TableHead>
-                                        <TableHead className="w-[200px]">Tỉ lệ</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {teams.map(team => {
-                                        const memberIds = new Set(students.filter(s => s.team === team).map(s => s.id))
-                                        const teamLogs = filteredLogs.filter(l => memberIds.has(l.studentId))
-                                        const vCount = teamLogs.filter(l => l.type === 'violation').length
-                                        const aCount = teamLogs.filter(l => l.type === 'achievement').length
-                                        const pts = teamLogs.reduce((s, l) => s + l.point, 0)
-                                        const total = vCount + aCount
-                                        const aPct = total > 0 ? Math.round((aCount / total) * 100) : 0
+            {/* Attendance Stats */}
+            {
+                (attendanceStats.totalAbsent > 0 || attendance.length > 0) && (
+                    <Card className="animate-slide-up" style={{ animationDelay: '120ms' }}>
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <ClipboardCheck className="h-4 w-4 text-indigo-500" />
+                                Thống kê Điểm danh
+                                <span className="text-xs font-normal text-slate-400 ml-1">(trong khoảng thời gian đã chọn)</span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-center">
+                                    <p className="text-2xl font-bold text-amber-600">{attendanceStats.totalExcused}</p>
+                                    <p className="text-xs text-amber-500 mt-0.5">Tổng buổi vắng có phép</p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-center">
+                                    <p className="text-2xl font-bold text-red-600">{attendanceStats.totalUnexcused}</p>
+                                    <p className="text-xs text-red-500 mt-0.5">Tổng buổi vắng không phép</p>
+                                </div>
+                                {attendanceStats.hasAfternoon ? (
+                                    <>
+                                        <div className="p-3 rounded-xl bg-orange-50 border border-orange-100">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <Sun className="h-3.5 w-3.5 text-orange-500" />
+                                                <span className="text-xs font-semibold text-orange-600">Buổi Sáng</span>
+                                            </div>
+                                            <p className="text-sm text-amber-600">Có phép: <strong>{attendanceStats.morningExcused}</strong></p>
+                                            <p className="text-sm text-red-600">Không phép: <strong>{attendanceStats.morningUnexcused}</strong></p>
+                                        </div>
+                                        <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                                                <span className="text-xs font-semibold text-indigo-600">Buổi Chiều</span>
+                                            </div>
+                                            <p className="text-sm text-amber-600">Có phép: <strong>{attendanceStats.afternoonExcused}</strong></p>
+                                            <p className="text-sm text-red-600">Không phép: <strong>{attendanceStats.afternoonUnexcused}</strong></p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100 text-center flex items-center justify-center">
+                                        <p className="text-xs text-slate-400">Chưa có dữ liệu buổi sáng/chiều riêng</p>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )
+            }
 
-                                        return (
-                                            <TableRow key={team} className="hover:bg-slate-50/80 transition-colors">
-                                                <TableCell className="font-semibold text-slate-800">{team}</TableCell>
-                                                <TableCell className="text-center">
-                                                    {vCount > 0 ? (
-                                                        <Badge variant="danger">{vCount}</Badge>
-                                                    ) : <span className="text-slate-300">0</span>}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    {aCount > 0 ? (
-                                                        <Badge variant="success">{aCount}</Badge>
-                                                    ) : <span className="text-slate-300">0</span>}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <span className={`font-bold ${pts >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        {pts > 0 ? '+' : ''}{pts}đ
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="whitespace-nowrap">
-                                                    {total > 0 ? (
-                                                        <div className="flex items-center gap-2 min-w-[120px]">
-                                                            <div className="flex-1 min-w-[50px] sm:min-w-[80px] h-4 rounded-full overflow-hidden bg-red-100 flex">
-                                                                <div
-                                                                    className="h-full bg-emerald-400 rounded-l-full transition-all"
-                                                                    style={{ width: `${aPct}%` }}
-                                                                />
+            {/* Team Breakdown — only when viewing all teams */}
+            {
+                !teamFilter && teams.length > 0 && filteredLogs.length > 0 && (
+                    <Card className="animate-slide-up" style={{ animationDelay: '150ms' }}>
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <Users className="h-4 w-4 text-indigo-500" />
+                                Tổng hợp theo tổ
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Tổ</TableHead>
+                                            <TableHead className="text-center">Tổng vi phạm</TableHead>
+                                            <TableHead className="text-center">Tổng việc tốt</TableHead>
+                                            <TableHead className="text-right">Tổng điểm c/trừ</TableHead>
+                                            <TableHead className="w-[200px]">Tỉ lệ</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {teams.map(team => {
+                                            const memberIds = new Set(students.filter(s => s.team === team).map(s => s.id))
+                                            const teamLogs = filteredLogs.filter(l => memberIds.has(l.studentId))
+                                            const vCount = teamLogs.filter(l => l.type === 'violation').length
+                                            const aCount = teamLogs.filter(l => l.type === 'achievement').length
+                                            const pts = teamLogs.reduce((s, l) => s + l.point, 0)
+                                            const total = vCount + aCount
+                                            const aPct = total > 0 ? Math.round((aCount / total) * 100) : 0
+
+                                            return (
+                                                <TableRow key={team} className="hover:bg-slate-50/80 transition-colors">
+                                                    <TableCell className="font-semibold text-slate-800">{team}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        {vCount > 0 ? (
+                                                            <Badge variant="danger">{vCount}</Badge>
+                                                        ) : <span className="text-slate-300">0</span>}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {aCount > 0 ? (
+                                                            <Badge variant="success">{aCount}</Badge>
+                                                        ) : <span className="text-slate-300">0</span>}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <span className={`font-bold ${pts >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                            {pts > 0 ? '+' : ''}{pts}đ
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="whitespace-nowrap">
+                                                        {total > 0 ? (
+                                                            <div className="flex items-center gap-2 min-w-[120px]">
+                                                                <div className="flex-1 min-w-[50px] sm:min-w-[80px] h-4 rounded-full overflow-hidden bg-red-100 flex">
+                                                                    <div
+                                                                        className="h-full bg-emerald-400 rounded-l-full transition-all"
+                                                                        style={{ width: `${aPct}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-[10px] text-slate-400 w-[50px] whitespace-nowrap text-right shrink-0">{aPct}% tốt</span>
                                                             </div>
-                                                            <span className="text-[10px] text-slate-400 w-[50px] whitespace-nowrap text-right shrink-0">{aPct}% tốt</span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-300 text-xs">—</span>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs">—</span>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )
+            }
 
             {/* Detail Table */}
             <Card className="animate-slide-up" style={{ animationDelay: '200ms' }}>
@@ -805,7 +874,7 @@ export default function ReportPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[80px]">Ngày</TableHead>
-                                    <TableHead className="w-[120px]">Học sinh</TableHead>
+                                    <TableHead className="whitespace-nowrap">Học sinh</TableHead>
                                     <TableHead className="w-auto">Nội dung</TableHead>
                                     <TableHead className="hidden md:table-cell w-[100px]">Môn</TableHead>
                                     <TableHead className="hidden lg:table-cell w-[100px]">Buổi/Tiết</TableHead>
@@ -825,7 +894,7 @@ export default function ReportPage() {
                                         <TableCell className="text-sm text-slate-600 whitespace-nowrap">
                                             {format(new Date(log.date), 'dd/MM/yyyy')}
                                         </TableCell>
-                                        <TableCell className="font-medium text-slate-800 break-words">
+                                        <TableCell className="font-medium text-slate-800 whitespace-nowrap">
                                             {getStudentName(log.studentId)}
                                         </TableCell>
                                         <TableCell className="text-sm text-slate-600 max-w-[200px] md:max-w-[300px] truncate" title={log.content}>
@@ -897,142 +966,146 @@ export default function ReportPage() {
             </Card>
 
             {/* Per-student breakdown */}
-            {studentBreakdown.size > 0 && (
-                <Card className="animate-slide-up" style={{ animationDelay: '300ms' }}>
-                    <CardHeader>
-                        <CardTitle className="text-base">Tổng hợp theo học sinh</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Học sinh</TableHead>
-                                        <TableHead className="text-center">Vi phạm</TableHead>
-                                        <TableHead className="text-center">Việc tốt</TableHead>
-                                        <TableHead className="text-right">Tổng điểm c/trừ</TableHead>
-                                        <TableHead className="text-center">Xếp loại</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paginatedStudents.map(([studentId, data]) => {
-                                        const grade = getConductGrade(data.points + 100, thresholds[thresholdType]) // assume 100 is init score for pure calculation, though this is a demo
-                                        return (
-                                            <TableRow key={studentId} className="hover:bg-slate-50/80 transition-colors">
-                                                <TableCell className="font-medium text-slate-800">{getStudentName(studentId)}</TableCell>
-                                                <TableCell className="text-center">
-                                                    {data.violations > 0 ? (
-                                                        <Badge variant="danger">{data.violations}</Badge>
-                                                    ) : <span className="text-slate-300">0</span>}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    {data.achievements > 0 ? (
-                                                        <Badge variant="success">{data.achievements}</Badge>
-                                                    ) : <span className="text-slate-300">0</span>}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <span className={`font-bold ${data.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        {data.points > 0 ? '+' : ''}{data.points}đ
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <Badge className={`${grade.bgColor} ${grade.color} border-none`}>{grade.name}</Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        {/* Pagination Controls */}
-                        {totalStudents > 0 && (
-                            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 no-print gap-4">
-                                <div className="flex items-center gap-2 text-sm text-slate-500">
-                                    <span>Hiển thị</span>
-                                    <select
-                                        value={studentsLimit}
-                                        onChange={e => {
-                                            setStudentsLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                                            setStudentsPage(1)
-                                        }}
-                                        className="input-field py-1 text-sm bg-white min-w-[70px]"
-                                    >
-                                        <option value={10}>10</option>
-                                        <option value={20}>20</option>
-                                        <option value={50}>50</option>
-                                        <option value="all">Tất cả</option>
-                                    </select>
-                                    <span>học sinh</span>
-                                </div>
-
-                                {studentsLimit !== 'all' && studentPagesCount > 1 && (
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            disabled={currentStudentPage === 1}
-                                            onClick={() => setStudentsPage(p => p - 1)}
-                                            className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                                        ><ChevronLeft className="h-4 w-4" /></button>
-                                        <span className="text-sm text-slate-600 font-medium px-2">Trang {currentStudentPage} / {studentPagesCount}</span>
-                                        <button
-                                            disabled={currentStudentPage >= studentPagesCount}
-                                            onClick={() => setStudentsPage(p => p + 1)}
-                                            className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                                        ><ChevronRight className="h-4 w-4" /></button>
-                                    </div>
-                                )}
+            {
+                studentBreakdown.size > 0 && (
+                    <Card className="animate-slide-up" style={{ animationDelay: '300ms' }}>
+                        <CardHeader>
+                            <CardTitle className="text-base">Tổng hợp theo học sinh</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Học sinh</TableHead>
+                                            <TableHead className="text-center">Vi phạm</TableHead>
+                                            <TableHead className="text-center">Việc tốt</TableHead>
+                                            <TableHead className="text-right">Tổng điểm c/trừ</TableHead>
+                                            <TableHead className="text-center">Xếp loại</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {paginatedStudents.map(([studentId, data]) => {
+                                            const grade = getConductGrade(data.points + 100, thresholds[thresholdType]) // assume 100 is init score for pure calculation, though this is a demo
+                                            return (
+                                                <TableRow key={studentId} className="hover:bg-slate-50/80 transition-colors">
+                                                    <TableCell className="font-medium text-slate-800 whitespace-nowrap">{getStudentName(studentId)}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        {data.violations > 0 ? (
+                                                            <Badge variant="danger">{data.violations}</Badge>
+                                                        ) : <span className="text-slate-300">0</span>}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {data.achievements > 0 ? (
+                                                            <Badge variant="success">{data.achievements}</Badge>
+                                                        ) : <span className="text-slate-300">0</span>}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <span className={`font-bold ${data.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                            {data.points > 0 ? '+' : ''}{data.points}đ
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Badge className={`${grade.bgColor} ${grade.color} border-none`}>{grade.name}</Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
                             </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
+                            {/* Pagination Controls */}
+                            {totalStudents > 0 && (
+                                <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 no-print gap-4">
+                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                        <span>Hiển thị</span>
+                                        <select
+                                            value={studentsLimit}
+                                            onChange={e => {
+                                                setStudentsLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                                                setStudentsPage(1)
+                                            }}
+                                            className="input-field py-1 text-sm bg-white min-w-[70px]"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                            <option value="all">Tất cả</option>
+                                        </select>
+                                        <span>học sinh</span>
+                                    </div>
+
+                                    {studentsLimit !== 'all' && studentPagesCount > 1 && (
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                disabled={currentStudentPage === 1}
+                                                onClick={() => setStudentsPage(p => p - 1)}
+                                                className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                                            ><ChevronLeft className="h-4 w-4" /></button>
+                                            <span className="text-sm text-slate-600 font-medium px-2">Trang {currentStudentPage} / {studentPagesCount}</span>
+                                            <button
+                                                disabled={currentStudentPage >= studentPagesCount}
+                                                onClick={() => setStudentsPage(p => p + 1)}
+                                                className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                                            ><ChevronRight className="h-4 w-4" /></button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )
+            }
 
             {/* Per-subject breakdown */}
-            {subjectBreakdown.size > 0 && (
-                <Card className="animate-slide-up" style={{ animationDelay: '350ms' }}>
-                    <CardHeader>
-                        <CardTitle className="text-base">Tổng hợp theo môn học</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Môn học</TableHead>
-                                        <TableHead className="text-center">Vi phạm</TableHead>
-                                        <TableHead className="text-center">Việc tốt</TableHead>
-                                        <TableHead className="text-right">Tổng điểm c/trừ</TableHead>
-                                        <TableHead className="text-center">Xếp loại</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {Array.from(subjectBreakdown.entries())
-                                        .sort((a, b) => a[1].points - b[1].points)
-                                        .map(([subject, data]) => (
-                                            <TableRow key={subject} className="hover:bg-slate-50/80 transition-colors">
-                                                <TableCell className="font-medium text-slate-800">{subject}</TableCell>
-                                                <TableCell className="text-center">
-                                                    {data.violations > 0 ? (
-                                                        <Badge variant="danger">{data.violations}</Badge>
-                                                    ) : <span className="text-slate-300">0</span>}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    {data.achievements > 0 ? (
-                                                        <Badge variant="success">{data.achievements}</Badge>
-                                                    ) : <span className="text-slate-300">0</span>}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <span className={`font-bold ${data.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        {data.points > 0 ? '+' : ''}{data.points}đ
-                                                    </span>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+            {
+                subjectBreakdown.size > 0 && (
+                    <Card className="animate-slide-up" style={{ animationDelay: '350ms' }}>
+                        <CardHeader>
+                            <CardTitle className="text-base">Tổng hợp theo môn học</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Môn học</TableHead>
+                                            <TableHead className="text-center">Vi phạm</TableHead>
+                                            <TableHead className="text-center">Việc tốt</TableHead>
+                                            <TableHead className="text-right">Tổng điểm c/trừ</TableHead>
+                                            <TableHead className="text-center">Xếp loại</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {Array.from(subjectBreakdown.entries())
+                                            .sort((a, b) => a[1].points - b[1].points)
+                                            .map(([subject, data]) => (
+                                                <TableRow key={subject} className="hover:bg-slate-50/80 transition-colors">
+                                                    <TableCell className="font-medium text-slate-800">{subject}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        {data.violations > 0 ? (
+                                                            <Badge variant="danger">{data.violations}</Badge>
+                                                        ) : <span className="text-slate-300">0</span>}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {data.achievements > 0 ? (
+                                                            <Badge variant="success">{data.achievements}</Badge>
+                                                        ) : <span className="text-slate-300">0</span>}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <span className={`font-bold ${data.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                            {data.points > 0 ? '+' : ''}{data.points}đ
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )
+            }
 
             {/* Print footer: Signatures */}
             <div className="print-footer no-screen page-break-inside-avoid">
@@ -1111,7 +1184,7 @@ export default function ReportPage() {
                 message={`Bạn có chắc chắn muốn xoá bản ghi "${deleteTarget?.content}"?`}
                 confirmText="Xoá"
             />
-        </div>
+        </div >
     )
 }
 

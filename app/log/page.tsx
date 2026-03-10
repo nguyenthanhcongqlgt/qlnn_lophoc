@@ -94,9 +94,12 @@ export default function LogPage() {
         allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         setRecentLogs(allLogs.slice(0, 20))
         setReady(true)
+        window.dispatchEvent(new Event('conduct-logs-changed'))
     }
 
-    const canApprove = user?.role === 'teacher' || (user?.studentId && authorizedStudents.includes(user.studentId));
+    const isAuthorizedRole = user?.role === 'teacher';
+    const isAuthorizedStudent = user?.studentId && authorizedStudents.includes(user.studentId);
+    const canApprove = isAuthorizedRole || isAuthorizedStudent;
 
     const incidentList = logType === 'violation' ? violations : achievements
 
@@ -584,7 +587,7 @@ export default function LogPage() {
                         <CardContent className="p-0">
                             <div className="divide-y divide-slate-100">
                                 {recentLogs.map(log => (
-                                    <div key={log.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/80 transition-colors group">
+                                    <div key={log.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 hover:bg-slate-50/80 transition-colors group">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <Badge variant={log.type === 'violation' ? 'danger' : 'success'} className="text-[10px]">
@@ -603,48 +606,51 @@ export default function LogPage() {
                                                     </Badge>
                                                 )}
                                                 {log.status === 'approved' && <Badge variant="success" className="text-[10px] py-0 h-4 bg-emerald-100/50 text-emerald-600 hover:bg-emerald-100/80">Đã duyệt</Badge>}
-                                                <span className="text-xs text-slate-400">—</span>
-                                                <span className="text-sm text-slate-600 truncate">{log.content}</span>
+                                                <span className="text-xs text-slate-400 hidden sm:inline">—</span>
+                                                <span className="text-sm text-slate-600 truncate hidden sm:inline">{log.content}</span>
                                             </div>
+                                            <p className="text-sm text-slate-600 truncate sm:hidden mt-1">{log.content}</p>
                                             <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
                                                 <span>{formatDate(log.date)}</span>
                                                 {log.subject && <span>• {log.subject}</span>}
                                                 {log.session && <span>• {log.session} T{log.period}</span>}
-                                                {log.createdBy && <span>• Tạo bởi: {log.createdBy}</span>}
+                                                {log.createdBy && <span className="hidden sm:inline">• Tạo bởi: {log.createdBy}</span>}
                                             </div>
                                         </div>
-                                        <span className={`text-sm font-bold shrink-0 ${log.point < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                            {log.point > 0 ? '+' : ''}{log.point}đ
-                                        </span>
-                                        <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-100 sm:border-t-0 sm:pt-0 sm:mt-0 sm:justify-end shrink-0 w-full sm:w-auto">
-                                            {canApprove && log.status === 'pending' && (
-                                                <>
-                                                    <button onClick={() => handleApprove(log.id, 'approved')}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition-colors"
-                                                        title="Duyệt">
-                                                        <Check className="h-3.5 w-3.5" />
-                                                        Duyệt
-                                                    </button>
-                                                    <button onClick={() => handleApprove(log.id, 'rejected')}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 transition-colors"
-                                                        title="Từ chối">
-                                                        <X className="h-3.5 w-3.5" />
-                                                        Từ chối
-                                                    </button>
-                                                </>
-                                            )}
-                                            <button onClick={() => openEdit(log)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                                                title="Sửa">
-                                                <Pencil className="h-3.5 w-3.5" />
-                                                Sửa
-                                            </button>
-                                            <button onClick={() => setDeleteTarget(log)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
-                                                title="Xoá">
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                                Xoá
-                                            </button>
+                                        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                                            <span className={`text-sm font-bold shrink-0 ${log.point < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                {log.point > 0 ? '+' : ''}{log.point}đ
+                                            </span>
+                                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                                {canApprove && log.status === 'pending' && (
+                                                    <>
+                                                        <button onClick={() => handleApprove(log.id, 'approved')}
+                                                            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition-colors"
+                                                            title="Duyệt">
+                                                            <Check className="h-3.5 w-3.5" />
+                                                            <span className="hidden sm:inline">Duyệt</span>
+                                                        </button>
+                                                        <button onClick={() => handleApprove(log.id, 'rejected')}
+                                                            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 transition-colors"
+                                                            title="Từ chối">
+                                                            <X className="h-3.5 w-3.5" />
+                                                            <span className="hidden sm:inline">Từ chối</span>
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button onClick={() => openEdit(log)}
+                                                    className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                                                    title="Sửa">
+                                                    <Pencil className="h-3.5 w-3.5" />
+                                                    <span className="hidden sm:inline">Sửa</span>
+                                                </button>
+                                                <button onClick={() => setDeleteTarget(log)}
+                                                    className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                                                    title="Xoá">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                    <span className="hidden sm:inline">Xoá</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

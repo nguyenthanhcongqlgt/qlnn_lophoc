@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { UserAccount, UserRole, AuthSession } from '@/types'
 import { login as authLogin, logout as authLogout, getCurrentSession, hasPermission, getAccounts } from '@/lib/auth'
-import { initializeData, getClassInfo } from '@/lib/storage'
+import { initializeData, getClassInfo, getPositions, getStudentsWithScores } from '@/lib/storage'
 
 type Action = Parameters<typeof hasPermission>[1]
 
@@ -19,32 +19,55 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+// Quyền bổ sung cho học sinh có chức vụ được phép lập phiếu
+const CAN_CREATE_LOG_ACTIONS: Action[] = [
+    'view_log', 'create_log',
+    'view_attendance', 'mark_attendance',
+]
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<UserAccount | null>(null)
     const [loading, setLoading] = useState(true)
     const [authorizedStudents, setAuthorizedStudents] = useState<string[]>([])
 
     useEffect(() => {
-        // Initialize (no-op for DB version — data is seeded by schema.sql)
         initializeData()
 
-        // Restore session from localStorage
         const session = getCurrentSession()
         if (session) {
-            // Refresh user data from API
-            getAccounts().then(accounts => {
-                const freshUser = accounts.find(a => a.id === session.user.id)
-                setUser(freshUser || session.user)
-                setLoading(false)
-            }).catch(() => {
-                setUser(session.user)
-                setLoading(false)
-            })
+            // Luôn re-resolve canCreateLog từ position hiện tại
+            // (cần thiết vì memory-store reset sau mỗi lần restart, vị position tự thêm sẽ mất)
+            if (session.user.role === 'student') {
+                Promise.all([getAccounts(), getPositions(), getStudentsWithScores()]).then(async ([accounts, positions, allStudents]) => {
+                    const freshUser = accounts.find(a => a.id === session.user.id) || session.user
+                    let canCreateLog = false
+                    let positionName: string | undefined = undefined;
+                    if (freshUser.studentId) {
+                        const student = allStudents.find(s => s.id === freshUser.studentId)
+                        positionName = student?.position || undefined;
+                        const pos = positions.find(p => p.name === student?.position)
+                        canCreateLog = pos?.canCreateLog ?? false
+                    }
+                    setUser({ ...freshUser, canCreateLog, positionName })
+                    setLoading(false)
+                }).catch(() => {
+                    setUser(session.user)
+                    setLoading(false)
+                })
+            } else {
+                getAccounts().then(accounts => {
+                    const freshUser = accounts.find(a => a.id === session.user.id)
+                    setUser(freshUser ? { ...freshUser, canCreateLog: session.user.canCreateLog, positionName: session.user.positionName } : session.user)
+                    setLoading(false)
+                }).catch(() => {
+                    setUser(session.user)
+                    setLoading(false)
+                })
+            }
         } else {
             setLoading(false)
         }
 
-        // Fetch authorized students for permissions
         getClassInfo().then(info => {
             setAuthorizedStudents(info.authorizedStudents || [])
         }).catch(() => { })
@@ -52,11 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const handleLogin = async (username: string, password: string): Promise<boolean> => {
         const session = await authLogin(username, password)
-        if (session) {
+        if (!session) return false
+
+        // Với học sinh, resolve canCreateLog ngay khi login
+        if (session.user.role === 'student') {
+            try {
+                const [positions, allStudents] = await Promise.all([getPositions(), getStudentsWithScores()])
+                const student = allStudents.find(s => s.id === session.user.studentId)
+                const positionName = student?.position || undefined;
+                const pos = positions.find(p => p.name === student?.position)
+                const canCreateLog = pos?.canCreateLog ?? false
+                setUser({ ...session.user, canCreateLog, positionName })
+            } catch {
+                setUser(session.user)
+            }
+        } else {
             setUser(session.user)
-            return true
         }
-        return false
+        return true
     }
 
     const handleLogout = () => {
@@ -66,6 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const can = (action: Action): boolean => {
         if (!user) return false
+
+        // Học sinh có chức vụ được phép lập phiếu → cấp thêm quyền
+        if (user.role === 'student' && user.canCreateLog === true) {
+            if (CAN_CREATE_LOG_ACTIONS.includes(action)) return true
+        }
+
         return hasPermission(user.role, action)
     }
 

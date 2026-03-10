@@ -10,18 +10,21 @@ import { changePassword } from "@/lib/auth"
 import { getClassInfo } from "@/lib/storage"
 import { ROLE_LABELS, ROLE_SHORT_LABELS, UserRole, ClassInfo } from "@/types"
 
+type PermissionAction = 'create_log' | 'mark_attendance' | 'view_settings'
+
 interface NavItem {
     name: string
     href: string
     icon: typeof Home
-    requiredRoles?: UserRole[] // If empty, all roles can see
+    requiredRoles?: UserRole[]   // role-based check
+    requiredPermission?: PermissionAction // permission-based check (overrides roles when present)
 }
 
 const navigation: NavItem[] = [
     { name: 'Tổng quan', href: '/', icon: Home },
     { name: 'Danh sách lớp', href: '/students', icon: Users },
-    { name: 'Chấm nề nếp', href: '/log', icon: PlusCircle, requiredRoles: ['team_leader', 'class_leader', 'teacher'] },
-    { name: 'Điểm danh', href: '/attendance', icon: ClipboardCheck, requiredRoles: ['team_leader', 'class_leader', 'teacher'] },
+    { name: 'Chấm nề nếp', href: '/log', icon: PlusCircle, requiredPermission: 'create_log' },
+    { name: 'Điểm danh', href: '/attendance', icon: ClipboardCheck, requiredPermission: 'mark_attendance' },
     { name: 'Báo cáo', href: '/report', icon: FileText },
     { name: 'Cài đặt', href: '/settings', icon: Settings, requiredRoles: ['teacher'] },
 ]
@@ -33,7 +36,7 @@ interface SidebarProps {
 
 export function Sidebar({ mobile, onClose }: SidebarProps) {
     const pathname = usePathname()
-    const { user, logout } = useAuth()
+    const { user, logout, can } = useAuth()
 
     // Sidebar state
     const [isCollapsed, setIsCollapsed] = useState(false)
@@ -48,6 +51,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
 
     // Class Info state
     const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
+    const [pendingCount, setPendingCount] = useState(0)
 
     const userRole = user?.role ?? 'student'
 
@@ -55,10 +59,33 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
         getClassInfo().then(info => setClassInfo(info)).catch(() => { })
     }, [])
 
-    // Filter navigation items based on user role
+    useEffect(() => {
+        if (!classInfo || !user) return;
+        const isAuthorizedRole = user.role === 'teacher';
+        const isAuthorizedStudent = user.role !== 'teacher' && classInfo.authorizedStudents?.includes(user.studentId || '');
+        const isAuthorized = isAuthorizedRole || isAuthorizedStudent;
+
+        if (isAuthorized) {
+            const fetchCount = () => {
+                fetch('/api/logs/pending-count')
+                    .then(res => res.json())
+                    .then(data => setPendingCount(data.count || 0))
+                    .catch(() => { });
+            };
+            fetchCount();
+
+            window.addEventListener('conduct-logs-changed', fetchCount);
+            return () => window.removeEventListener('conduct-logs-changed', fetchCount);
+        }
+    }, [classInfo, user]);
+
+    // Filter navigation items based on user role AND permissions
     const visibleNav = navigation.filter(item => {
-        if (!item.requiredRoles) return true
-        return item.requiredRoles.includes(userRole)
+        // Permission-based check takes priority
+        if (item.requiredPermission) return can(item.requiredPermission as any)
+        // Role-based check
+        if (item.requiredRoles) return item.requiredRoles.includes(userRole)
+        return true
     })
 
     const handleLogout = () => {
@@ -138,9 +165,9 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
             ref={sidebarRef}
             onMouseEnter={() => !mobile && setIsCollapsed(false)}
             className={cn(
-                "flex h-screen flex-col bg-white border-r border-slate-200 transition-all duration-300 ease-in-out z-40 relative shadow-[2px_0_8px_-4px_rgba(0,0,0,0.1)]",
+                "flex h-screen flex-col bg-white border-r border-slate-100 transition-all duration-300 ease-in-out z-40 relative",
                 isCollapsed ? "w-[72px]" : "w-72",
-                mobile ? "fixed inset-y-0 left-0" : ""
+                mobile ? "fixed inset-y-0 left-0 shadow-2xl" : "shadow-[1px_0_4px_-2px_rgba(0,0,0,0.06)]"
             )}
         >
             {/* Toggle Button (Desktop only) */}
@@ -154,7 +181,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
             )}
 
             {/* Logo / Brand */}
-            <div className={cn("flex h-16 items-center px-4 border-b border-slate-100", isCollapsed ? "justify-center" : "justify-between")}>
+            <div className={cn("flex h-16 items-center px-4 border-b border-slate-50", isCollapsed ? "justify-center" : "justify-between")}>
                 <div className="flex items-center gap-3 overflow-hidden">
                     {classInfo?.logo ? (
                         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 p-0.5 shadow-sm flex items-center justify-center shrink-0">
@@ -186,9 +213,9 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
+            <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
                 {visibleNav.map((item) => {
-                    const isActive = pathname === item.href
+                    const isActive = pathname === item.href;
                     return (
                         <Link
                             key={item.href}
@@ -196,11 +223,11 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
                             onClick={mobile ? onClose : undefined}
                             title={isCollapsed ? item.name : undefined}
                             className={cn(
-                                "group flex items-center transition-all duration-200",
+                                "group relative flex items-center transition-all duration-200",
                                 isCollapsed
                                     ? "justify-center"
-                                    : "px-3 py-3 rounded-xl hover:bg-slate-50",
-                                !isCollapsed && isActive && "bg-indigo-50/60"
+                                    : "px-3 py-2.5 rounded-xl hover:bg-slate-50",
+                                !isCollapsed && isActive && "bg-indigo-50/80 shadow-sm shadow-indigo-100/50"
                             )}
                         >
                             <div className={cn(
@@ -215,11 +242,24 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
 
                             {!isCollapsed && (
                                 <span className={cn(
-                                    "text-[13px] tracking-wide font-medium",
-                                    isActive ? "text-indigo-700 font-semibold" : "text-slate-600"
+                                    "text-[13px] tracking-wide font-medium flex-1",
+                                    isActive ? "text-indigo-700 font-semibold" : "text-slate-600 group-hover:text-slate-900"
                                 )}>
                                     {item.name}
                                 </span>
+                            )}
+
+                            {item.href === '/log' && pendingCount > 0 && (
+                                isCollapsed ? (
+                                    <span className="absolute top-1 right-2 flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                    </span>
+                                ) : (
+                                    <span title={`${pendingCount} phiếu nề nếp chờ duyệt`} className="ml-auto flex shrink-0 items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600 border border-red-200 shadow-sm">
+                                        {pendingCount > 99 ? '99+' : pendingCount}
+                                    </span>
+                                )
                             )}
                         </Link>
                     )
@@ -227,7 +267,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
             </nav>
 
             {/* Footer: User Info + Actions */}
-            <div className="border-t border-slate-100 p-3 bg-slate-50/50">
+            <div className="border-t border-slate-50 p-3 bg-gradient-to-t from-slate-50/80 to-transparent">
                 {!isCollapsed ? (
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center gap-3 px-1">
@@ -236,7 +276,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-slate-700 truncate">{user?.displayName || 'Người dùng'}</p>
-                                <p className="text-xs text-slate-500 truncate">{ROLE_LABELS[userRole]}</p>
+                                <p className="text-xs text-slate-500 truncate">{user?.positionName || ROLE_LABELS[userRole]}</p>
                             </div>
                         </div>
                         <div className="flex gap-1.5">
@@ -260,7 +300,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
                     <div className="flex flex-col items-center gap-3 py-1">
                         <div
                             className={`w-8 h-8 rounded-full bg-gradient-to-br ${roleBadgeColors[userRole]} flex items-center justify-center text-xs font-bold text-white shadow-sm cursor-help`}
-                            title={`${user?.displayName} - ${ROLE_LABELS[userRole]}`}
+                            title={`${user?.displayName} - ${user?.positionName || ROLE_LABELS[userRole]}`}
                         >
                             {ROLE_SHORT_LABELS[userRole]}
                         </div>

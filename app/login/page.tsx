@@ -55,35 +55,39 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4"
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
             style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #0f172a 100%)' }}>
 
-            <div className="w-full max-w-sm animate-slide-up">
+            {/* Decorative animated orbs */}
+            <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-3xl animate-pulse" />
+            <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] rounded-full bg-cyan-500/10 blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+
+            <div className="w-full max-w-[380px] animate-slide-up relative z-10">
                 {/* Logo */}
-                <div className="text-center mb-8">
+                <div className="text-center mb-10">
                     {classInfo?.logo ? (
-                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-white shadow-lg shadow-indigo-500/30 overflow-hidden">
+                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-white/95 shadow-xl shadow-indigo-500/20 overflow-hidden ring-1 ring-white/20">
                             <img src={classInfo.logo} alt="Logo trường" className="w-full h-full object-contain" />
                         </div>
                     ) : (
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-400 to-cyan-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
-                            <BookOpen className="h-8 w-8 text-white" />
+                        <div className="w-18 h-18 rounded-2xl bg-gradient-to-br from-indigo-400 to-cyan-400 flex items-center justify-center mx-auto mb-5 shadow-xl shadow-indigo-500/25 ring-1 ring-white/10">
+                            <BookOpen className="h-9 w-9 text-white" />
                         </div>
                     )}
 
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-300 to-cyan-300 bg-clip-text text-transparent">
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-200 via-white to-cyan-200 bg-clip-text text-transparent">
                         {classInfo?.schoolName || 'Sổ Nề Nếp Điện Tử'}
                     </h1>
                     {classInfo?.name && (
-                        <p className="text-indigo-200 font-medium mt-1 text-lg">
+                        <p className="text-indigo-200/80 font-semibold mt-1.5 text-lg tracking-wide">
                             {classInfo.name}
                         </p>
                     )}
-                    <p className="text-indigo-300/60 text-sm mt-1">Đăng nhập để tiếp tục</p>
+                    <p className="text-indigo-300/40 text-sm mt-2">Đăng nhập để tiếp tục</p>
                 </div>
 
                 {/* Login Form Card */}
-                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-2xl">
+                <div className="bg-white/[0.07] backdrop-blur-2xl rounded-3xl p-7 border border-white/[0.08] shadow-2xl shadow-black/20">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Username */}
                         <div>
@@ -95,7 +99,7 @@ export default function LoginPage() {
                                 value={username}
                                 onChange={e => { setUsername(e.target.value); setError('') }}
                                 placeholder="VD: gvcn hoặc HS001"
-                                className="w-full h-11 rounded-xl bg-white/10 border border-white/15 px-4 text-white placeholder:text-indigo-300/40 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 outline-none transition-all text-sm"
+                                className="w-full h-12 rounded-xl bg-white/[0.08] border border-white/[0.12] px-4 text-white placeholder:text-indigo-300/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/20 focus:bg-white/[0.12] outline-none transition-all text-sm"
                                 autoComplete="username"
                                 autoFocus
                             />
@@ -112,7 +116,7 @@ export default function LoginPage() {
                                     value={password}
                                     onChange={e => { setPassword(e.target.value); setError('') }}
                                     placeholder="••••••"
-                                    className="w-full h-11 rounded-xl bg-white/10 border border-white/15 px-4 pr-11 text-white placeholder:text-indigo-300/40 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 outline-none transition-all text-sm"
+                                    className="w-full h-12 rounded-xl bg-white/[0.08] border border-white/[0.12] px-4 pr-11 text-white placeholder:text-indigo-300/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/20 focus:bg-white/[0.12] outline-none transition-all text-sm"
                                     autoComplete="current-password"
                                 />
                                 <button
@@ -137,7 +141,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full h-11 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 disabled:opacity-60"
+                            className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 disabled:opacity-60 hover:shadow-xl hover:shadow-indigo-500/30 active:scale-[0.98]"
                         >
                             {isSubmitting ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

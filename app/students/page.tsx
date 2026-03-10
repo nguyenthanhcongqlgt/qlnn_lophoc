@@ -10,9 +10,9 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import {
     initializeData, getStudentsWithScores, addStudent, updateStudent, deleteStudent as removeStudent,
-    getGradeThresholds, resetStudentPassword, updateStudentStatus, deleteAllStudents
+    getGradeThresholds, resetStudentPassword, updateStudentStatus, deleteAllStudents, getPositions
 } from '@/lib/storage'
-import { Student, StudentWithScore, GradeThresholds, getConductGrade, DEFAULT_GRADE_THRESHOLDS } from '@/types'
+import { Student, StudentWithScore, GradeThresholds, getConductGrade, DEFAULT_GRADE_THRESHOLDS, Position } from '@/types'
 import { Search, Plus, Pencil, Trash2, ArrowUpDown, Filter, ChevronLeft, ChevronRight, KeyRound, UserMinus, UserCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
@@ -22,6 +22,7 @@ export default function StudentsPage() {
     const [teamFilter, setTeamFilter] = useState('')
     const [sortAsc, setSortAsc] = useState(true)
     const [gradeThresholds, setGradeThresholds] = useState<GradeThresholds>(DEFAULT_GRADE_THRESHOLDS)
+    const [positions, setPositions] = useState<Position[]>([])
     const [ready, setReady] = useState(false)
 
     // Pagination
@@ -53,12 +54,14 @@ export default function StudentsPage() {
     }, [])
 
     const refresh = async () => {
-        const [swScores, thresholds] = await Promise.all([
+        const [swScores, thresholds, posData] = await Promise.all([
             getStudentsWithScores(),
             getGradeThresholds(),
+            getPositions(),
         ])
         setStudents(swScores)
         setGradeThresholds(thresholds)
+        setPositions(posData)
         setReady(true)
     }
 
@@ -107,11 +110,13 @@ export default function StudentsPage() {
 
     const handleSave = async () => {
         if (!formName.trim()) return
+        // position: gửi null khi rỗng để API xóa chức vụ, không gửi undefined (sẽ bị bỏ qua)
+        const positionValue = formPosition.trim() || null
         if (editingStudent) {
-            await updateStudent(editingStudent.id, { name: formName.trim(), dateOfBirth: formDob.trim(), team: formTeam, position: formPosition || undefined, initialScore: formScore })
+            await updateStudent(editingStudent.id, { name: formName.trim(), dateOfBirth: formDob.trim(), team: formTeam, position: positionValue as any, initialScore: formScore })
             showToast('Đã cập nhật học sinh!')
         } else {
-            await addStudent({ name: formName.trim(), dateOfBirth: formDob.trim(), team: formTeam, position: formPosition || undefined, initialScore: formScore })
+            await addStudent({ name: formName.trim(), dateOfBirth: formDob.trim(), team: formTeam, position: positionValue || undefined, initialScore: formScore })
             showToast('Đã thêm học sinh mới!')
         }
         setShowAddEdit(false)
@@ -254,7 +259,7 @@ export default function StudentsPage() {
                                                 {(currentPage - 1) * itemsPerPage + idx + 1}
                                             </TableCell>
                                             <TableCell className="font-mono text-sm text-slate-600 font-medium whitespace-nowrap">
-                                                {student.id}
+                                                {student.username || student.id}
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
@@ -403,8 +408,8 @@ export default function StudentsPage() {
                                 className="input-field"
                             >
                                 <option value="">Không có</option>
-                                {['Lớp trưởng', 'Bí thư', 'Lớp phó học tập', 'Lớp phó lao động', 'Tổ trưởng'].map(p => (
-                                    <option key={p} value={p}>{p}</option>
+                                {positions.map(p => (
+                                    <option key={p.id} value={p.name}>{p.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -451,7 +456,7 @@ export default function StudentsPage() {
                 onClose={() => setResetPwTarget(null)}
                 onConfirm={handleResetPw}
                 title="Cấp lại mật khẩu"
-                message={`Mật khẩu đăng nhập của học sinh "${resetPwTarget?.name}" (Tài khoản: ${resetPwTarget?.id}) sẽ được đặt lại thành mặc định "123456". Bạn có chắc chắn không?`}
+                message={`Mật khẩu đăng nhập của học sinh "${resetPwTarget?.name}" (Tài khoản: ${resetPwTarget?.username || resetPwTarget?.id}) sẽ được đặt lại thành mặc định "123456". Bạn có chắc chắn không?`}
                 confirmText="Xác nhận cấp lại"
                 variant="danger"
             />

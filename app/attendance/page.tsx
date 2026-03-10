@@ -6,8 +6,8 @@ import { useToast } from '@/components/ui/toast'
 import {
     initializeData, getStudents, getAttendance, setAttendanceForDate
 } from '@/lib/storage'
-import { Student, AttendanceRecord, AttendanceStatus } from '@/types'
-import { ClipboardCheck, Calendar, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Student, AttendanceRecord, AttendanceStatus, AttendanceSession, ATTENDANCE_SESSION_LABELS } from '@/types'
+import { ClipboardCheck, Calendar, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, AlertTriangle, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { format, parseISO } from 'date-fns'
 
@@ -24,6 +24,7 @@ export default function AttendancePage() {
     const [students, setStudents] = useState<Student[]>([])
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+    const [session, setSession] = useState<AttendanceSession>('morning')
     const [ready, setReady] = useState(false)
 
     const { showToast, ToastComponent } = useToast()
@@ -44,14 +45,14 @@ export default function AttendancePage() {
         setReady(true)
     }
 
-    // Get attendance map for current date
+    // Get attendance map for current date + session
     const attendanceMap = useMemo(() => {
         const map = new Map<string, AttendanceStatus>()
         attendance
-            .filter(r => r.date === date)
+            .filter(r => r.date === date && (r.session || 'morning') === session)
             .forEach(r => map.set(r.studentId, r.status))
         return map
-    }, [attendance, date])
+    }, [attendance, date, session])
 
     const getStatus = (studentId: string): AttendanceStatus => {
         return attendanceMap.get(studentId) || 'present'
@@ -65,7 +66,7 @@ export default function AttendancePage() {
             case 'absent_excused': next = 'absent_unexcused'; break
             case 'absent_unexcused': next = 'present'; break
         }
-        await setAttendanceForDate(studentId, date, next)
+        await setAttendanceForDate(studentId, date, next, undefined, session)
         refresh()
     }
 
@@ -85,14 +86,13 @@ export default function AttendancePage() {
         })
         return Array.from(map.entries())
             .filter(([team]) => {
-                // Team leader only sees their own team
                 if (user?.role === 'team_leader') return team === user.team
                 return true
             })
             .sort(([a], [b]) => a.localeCompare(b))
     }, [students, user])
 
-    // Stats
+    // Stats for current session
     const absentExcused = Array.from(attendanceMap.values()).filter(s => s === 'absent_excused').length
     const absentUnexcused = Array.from(attendanceMap.values()).filter(s => s === 'absent_unexcused').length
     const presentCount = students.length - absentExcused - absentUnexcused
@@ -104,7 +104,7 @@ export default function AttendancePage() {
         absent_unexcused: { icon: XCircle, label: 'Vắng (K)', color: 'text-red-600', bg: 'bg-red-50 border-red-200' },
     }
 
-    // Recent attendance history (last 5 school days that have records)
+    // Recent attendance history (last 5 dates that have records)
     const recentDates = useMemo(() => {
         const dates = new Set(attendance.map(a => a.date))
         return Array.from(dates).sort().reverse().slice(0, 5)
@@ -153,6 +153,35 @@ export default function AttendancePage() {
                 </button>
                 <span className="text-sm text-slate-500 font-medium">
                     {formatDate(date)}
+                </span>
+            </div>
+
+            {/* Session selector (Sáng / Chiều) */}
+            <div className="flex items-center gap-2 animate-fade-in" style={{ animationDelay: '80ms' }}>
+                <button
+                    onClick={() => setSession('morning')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border-2 ${session === 'morning'
+                        ? 'bg-amber-50 border-amber-400 text-amber-700 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                        }`}
+                >
+                    <Sun className="h-4 w-4" />
+                    Buổi Sáng
+                </button>
+                <button
+                    onClick={() => setSession('afternoon')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border-2 ${session === 'afternoon'
+                        ? 'bg-indigo-50 border-indigo-400 text-indigo-700 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                        }`}
+                >
+                    <Moon className="h-4 w-4" />
+                    Buổi Chiều
+                </button>
+                <span className="text-xs text-slate-400 ml-1">
+                    Đang điểm danh: <strong className={session === 'morning' ? 'text-amber-600' : 'text-indigo-600'}>
+                        {ATTENDANCE_SESSION_LABELS[session]}
+                    </strong>
                 </span>
             </div>
 
@@ -234,8 +263,13 @@ export default function AttendancePage() {
                         <div className="divide-y divide-slate-100">
                             {recentDates.map(d => {
                                 const dayRecords = attendance.filter(a => a.date === d)
+                                // Total across both sessions
                                 const excused = dayRecords.filter(r => r.status === 'absent_excused').length
                                 const unexcused = dayRecords.filter(r => r.status === 'absent_unexcused').length
+                                // Per-session breakdown
+                                const morningAbsent = dayRecords.filter(r => (r.session || 'morning') === 'morning' && r.status !== 'present').length
+                                const afternoonAbsent = dayRecords.filter(r => r.session === 'afternoon' && r.status !== 'present').length
+                                const hasAfternoon = dayRecords.some(r => r.session === 'afternoon')
                                 return (
                                     <button
                                         key={d}
@@ -246,9 +280,19 @@ export default function AttendancePage() {
                                             {formatDate(d)}
                                         </span>
                                         <div className="flex items-center gap-3 text-xs">
-                                            {excused > 0 && <span className="text-amber-600 font-medium">Vắng P: {excused}</span>}
-                                            {unexcused > 0 && <span className="text-red-600 font-medium">Vắng K: {unexcused}</span>}
-                                            {excused === 0 && unexcused === 0 && <span className="text-emerald-500">Đầy đủ</span>}
+                                            {hasAfternoon ? (
+                                                <>
+                                                    {morningAbsent > 0 && <span className="text-amber-600 font-medium flex items-center gap-1"><Sun className="h-3 w-3" />{morningAbsent} vắng</span>}
+                                                    {afternoonAbsent > 0 && <span className="text-indigo-600 font-medium flex items-center gap-1"><Moon className="h-3 w-3" />{afternoonAbsent} vắng</span>}
+                                                    {morningAbsent === 0 && afternoonAbsent === 0 && <span className="text-emerald-500">Đầy đủ</span>}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {excused > 0 && <span className="text-amber-600 font-medium">Vắng P: {excused}</span>}
+                                                    {unexcused > 0 && <span className="text-red-600 font-medium">Vắng K: {unexcused}</span>}
+                                                    {excused === 0 && unexcused === 0 && <span className="text-emerald-500">Đầy đủ</span>}
+                                                </>
+                                            )}
                                         </div>
                                     </button>
                                 )
