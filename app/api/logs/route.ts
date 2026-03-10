@@ -3,12 +3,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { hasPostgres, getStore } from '@/lib/memory-store';
+import { ensureLatestSchema } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             const { rows } = await sql`
                 SELECT id, student_id AS "studentId", type, content, point,
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
         let sequence = 1;
 
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             // Get highest sequence number for this prefix
             const { rows } = await sql`
@@ -85,6 +88,7 @@ export async function PUT(req: NextRequest) {
         const { id, ...data } = body;
 
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             if (data.type !== undefined) await sql`UPDATE log_entries SET type = ${data.type} WHERE id = ${id}`;
             if (data.content !== undefined) await sql`UPDATE log_entries SET content = ${data.content} WHERE id = ${id}`;

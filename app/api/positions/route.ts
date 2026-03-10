@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { hasPostgres, getStore } from '@/lib/memory-store';
+import { ensureLatestSchema } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ const DEFAULT_POSITIONS = [
 export async function GET() {
     try {
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             // Try to get from DB; if table doesn't exist, return defaults
             try {
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
         const { id, name, canCreateLog } = body;
 
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             await sql`
                 INSERT INTO positions (id, name, can_create_log)

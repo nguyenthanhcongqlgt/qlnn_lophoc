@@ -3,15 +3,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { hasPostgres, getStore } from '@/lib/memory-store';
+import { ensureLatestSchema } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             const { rows } = await sql`
-                SELECT id, student_id AS "studentId", date, COALESCE(session, 'morning') AS session, status, note
+                SELECT id, student_id AS "studentId", date, session, status, note
                 FROM attendance ORDER BY date DESC, student_id
             `;
             return NextResponse.json(rows);
@@ -29,9 +31,10 @@ export async function POST(req: NextRequest) {
         const { studentId, date, session = 'morning', status, note } = body;
 
         if (hasPostgres()) {
+            await ensureLatestSchema();
             const { sql } = await import('@vercel/postgres');
             if (status === 'present') {
-                await sql`DELETE FROM attendance WHERE student_id = ${studentId} AND date = ${date} AND COALESCE(session, 'morning') = ${session}`;
+                await sql`DELETE FROM attendance WHERE student_id = ${studentId} AND date = ${date} AND session = ${session}`;
                 return NextResponse.json({ success: true, action: 'deleted' });
             }
             const id = `ATT${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
