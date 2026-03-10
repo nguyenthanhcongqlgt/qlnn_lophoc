@@ -190,3 +190,13 @@ INSERT INTO accounts (id, username, password, role, display_name, student_id, te
     ('acc_HS014', 'hs_dothingoc', '123456', 'student', 'Đỗ Thị Ngọc', 'HS014', 'Tổ 2'),
     ('acc_HS015', 'hs_phanvankhai', '123456', 'student', 'Phan Văn Khải', 'HS015', 'Tổ 3')
 ON CONFLICT (id) DO NOTHING;
+
+-- Chức vụ mặc định
+INSERT INTO positions (id, name, can_create_log) VALUES
+    ('pos_lt', 'Lớp trưởng', true),
+    ('pos_lp', 'Lớp phó', true),
+    ('pos_bt', 'Bí thư', true),
+    ('pos_tt', 'Tổ trưởng', true),
+    ('pos_cd', 'Cờ đỏ', true),
+    ('pos_hs', 'Học sinh', false)
+ON CONFLICT (id) DO NOTHING;

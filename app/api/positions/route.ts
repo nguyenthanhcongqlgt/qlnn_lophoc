@@ -11,6 +11,7 @@ const DEFAULT_POSITIONS = [
     { id: 'pos_lp', name: 'Lớp phó', canCreateLog: true },
     { id: 'pos_bt', name: 'Bí thư', canCreateLog: true },
     { id: 'pos_tt', name: 'Tổ trưởng', canCreateLog: true },
+    { id: 'pos_cd', name: 'Cờ đỏ', canCreateLog: true },
     { id: 'pos_hs', name: 'Học sinh', canCreateLog: false },
 ];
 
@@ -24,8 +25,15 @@ export async function GET() {
                     SELECT id, name, can_create_log AS "canCreateLog"
                     FROM positions ORDER BY name
                 `;
-                if (rows.length === 0) return NextResponse.json(DEFAULT_POSITIONS);
-                return NextResponse.json(rows);
+
+                // Merge defaults with DB rows (DB takes precedence for same ID)
+                const merged = [...DEFAULT_POSITIONS];
+                (rows as unknown as typeof DEFAULT_POSITIONS).forEach(row => {
+                    const idx = merged.findIndex(p => p.id === row.id);
+                    if (idx >= 0) merged[idx] = row;
+                    else merged.push(row);
+                });
+                return NextResponse.json(merged);
             } catch {
                 return NextResponse.json(DEFAULT_POSITIONS);
             }
@@ -56,6 +64,7 @@ export async function POST(req: NextRequest) {
         } else {
             const store = getStore();
             if (!store.positions) store.positions = {};
+            // If it's a default ID being saved, it will overwrite the default in local store
             store.positions[id] = { id, name, canCreateLog };
         }
         return NextResponse.json({ id, name, canCreateLog });
