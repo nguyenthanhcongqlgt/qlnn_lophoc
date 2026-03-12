@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { hasPostgres, getStore } from '@/lib/memory-store';
+import { ensureLatestSchema } from '@/lib/db';
 
 async function getAccountsFromDB() {
     if (hasPostgres()) {
@@ -34,6 +35,11 @@ export async function POST(req: NextRequest) {
 
         if (action === 'login') {
             const { username, password } = body;
+
+            // Ensure DB is initialized before checking credentials
+            if (hasPostgres()) {
+                await ensureLatestSchema();
+            }
 
             if (hasPostgres()) {
                 const { sql } = await import('@vercel/postgres');
