@@ -9,7 +9,7 @@ import { ConfirmDialog, Dialog } from '@/components/ui/dialog'
 import {
     initializeData, getStudentsWithScores, getLogs, deleteLog, getStudents, getClassInfo, getGradeThresholds, getAttendance
 } from '@/lib/storage'
-import { LogEntry, StudentWithScore, Student, ClassInfo, Semester, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord } from '@/types'
+import { LogEntry, StudentWithScore, ClassInfo, Semester, GradeThresholds, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord } from '@/types'
 import {
     Calendar, Download, AlertTriangle, Award, TrendingDown, Trash2,
     CalendarDays, CalendarRange, GraduationCap, X, Users, Filter, User, Printer, FileSpreadsheet, BookOpen, Contact, ChevronLeft, ChevronRight, ClipboardCheck, Sun, Moon
