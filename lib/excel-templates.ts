@@ -48,7 +48,7 @@ export function parseStudentExcel(file: File): Promise<ParseResult<Omit<Student,
         reader.onload = (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
-                const wb = XLSX.read(data, { type: 'array' });
+                const wb = XLSX.read(data, { type: 'array', cellDates: true });
                 const ws = wb.Sheets[wb.SheetNames[0]];
                 const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
@@ -61,8 +61,19 @@ export function parseStudentExcel(file: File): Promise<ParseResult<Omit<Student,
                     if (!row || row.length === 0) continue;
 
                     const name = String(row[1] || '').trim();
-                    const dob = String(row[2] || '').trim();
+                    let dob = row[2];
                     const team = String(row[3] || '').trim();
+
+                    // Handle Excel date objects
+                    if (dob instanceof Date) {
+                        const d = dob;
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const year = d.getFullYear();
+                        dob = `${day}/${month}/${year}`;
+                    } else {
+                        dob = String(dob || '').trim();
+                    }
 
                     if (!name) {
                         errors.push(`Dòng ${i + 1}: Thiếu họ tên`);

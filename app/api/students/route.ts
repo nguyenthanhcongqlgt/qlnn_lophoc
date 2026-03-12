@@ -80,15 +80,15 @@ export async function POST(req: NextRequest) {
             const results = [];
             for (const item of body.batch) {
                 const id = item.id || `HS${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-                const { name, team, position = null, initialScore = 100 } = item;
+                const { name, team, position = null, initialScore = 100, dateOfBirth = null } = item;
                 const uniqueUsername = getUniqueUsername(name);
 
                 if (hasPostgres()) {
                     const { sql } = await import('@vercel/postgres');
                     await sql`
-                        INSERT INTO students (id, name, team, position, initial_score)
-                        VALUES (${id}, ${name}, ${team}, ${position}, ${initialScore})
-                        ON CONFLICT (id) DO UPDATE SET name = ${name}, team = ${team}, position = ${position}, initial_score = ${initialScore}
+                        INSERT INTO students (id, name, team, position, initial_score, date_of_birth)
+                        VALUES (${id}, ${name}, ${team}, ${position}, ${initialScore}, ${dateOfBirth})
+                        ON CONFLICT (id) DO UPDATE SET name = ${name}, team = ${team}, position = ${position}, initial_score = ${initialScore}, date_of_birth = ${dateOfBirth}
                     `;
                     // Auto-create student account
                     const accId = `acc_${id}`;
@@ -100,13 +100,13 @@ export async function POST(req: NextRequest) {
                     `;
                 } else {
                     const store = getStore();
-                    store.students[id] = { id, name, team, position, initialScore, note: null, status: 'active' };
+                    store.students[id] = { id, name, team, position, initialScore, dateOfBirth, note: null, status: 'active' };
                     store.accounts[`acc_${id}`] = {
                         id: `acc_${id}`, username: uniqueUsername, password: '123456',
                         role: getRoleFromPosition(position) as any, displayName: name, studentId: id, team,
                     };
                 }
-                results.push({ id, name, team, position, initialScore });
+                results.push({ id, name, team, position, initialScore, dateOfBirth });
             }
             return NextResponse.json(results);
         }
