@@ -9,42 +9,7 @@ export { sql };
  */
 export async function ensureLatestSchema() {
     try {
-        // 1. Ensure attendance has 'session' column
-        await sql`
-            DO $$ 
-            BEGIN 
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='attendance' AND column_name='session') THEN
-                    ALTER TABLE attendance ADD COLUMN session TEXT NOT NULL DEFAULT 'morning' CHECK (session IN ('morning', 'afternoon'));
-                END IF;
-            END $$;
-        `;
-
-        // 2. Ensure attendance unique constraint includes session
-        await sql`
-            DO $$
-            BEGIN
-                -- Drop old constraint if it exists (usually named attendance_student_id_date_key or similar)
-                ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_student_id_date_key;
-                -- Add new one
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'attendance_student_id_date_session_key') THEN
-                    ALTER TABLE attendance ADD CONSTRAINT attendance_student_id_date_session_key UNIQUE (student_id, date, session);
-                END IF;
-            EXCEPTION WHEN OTHERS THEN
-                NULL; 
-            END $$;
-        `;
-
-        // 3. Ensure log_entries has 'session' column
-        await sql`
-            DO $$ 
-            BEGIN 
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_entries' AND column_name='session') THEN
-                    ALTER TABLE log_entries ADD COLUMN session TEXT;
-                END IF;
-            END $$;
-        `;
-
-        // 4. Ensure all basic tables exist
+        // 1. Create all basic tables first (Order is important for foreign keys if any)
         await sql`CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, name TEXT NOT NULL, team TEXT NOT NULL, position TEXT, initial_score INTEGER NOT NULL DEFAULT 100, note TEXT, status VARCHAR(20) DEFAULT 'active', dropout_date VARCHAR(20), date_of_birth VARCHAR(20))`;
         await sql`CREATE TABLE IF NOT EXISTS log_entries (id TEXT PRIMARY KEY, student_id TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, point INTEGER NOT NULL, date TEXT NOT NULL, timestamp TEXT NOT NULL, subject TEXT, session TEXT, period INTEGER, status TEXT DEFAULT 'pending', reject_reason TEXT, created_by TEXT)`;
         await sql`CREATE TABLE IF NOT EXISTS incident_types (id TEXT PRIMARY KEY, content TEXT NOT NULL, point INTEGER NOT NULL, type TEXT NOT NULL)`;
@@ -55,20 +20,51 @@ export async function ensureLatestSchema() {
         await sql`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, role TEXT NOT NULL, display_name TEXT NOT NULL, student_id TEXT, team TEXT)`;
         await sql`CREATE TABLE IF NOT EXISTS positions (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, can_create_log BOOLEAN NOT NULL DEFAULT false)`;
 
-        // 5. Ensure default teacher account exists
+        // 2. Perform light migrations (Adding missing columns to existing tables)
+
+        // Ensure attendance has 'session' column (if it was created by an older version)
+        await sql`
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='attendance' AND column_name='session') THEN
+                    ALTER TABLE attendance ADD COLUMN session TEXT NOT NULL DEFAULT 'morning' CHECK (session IN ('morning', 'afternoon'));
+                END IF;
+            END $$;
+        `;
+
+        // Ensure attendance unique constraint includes session
+        await sql`
+            DO $$
+            BEGIN
+                ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_student_id_date_key;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'attendance_student_id_date_session_key') THEN
+                    ALTER TABLE attendance ADD CONSTRAINT attendance_student_id_date_session_key UNIQUE (student_id, date, session);
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL; 
+            END $$;
+        `;
+
+        // Ensure log_entries has 'session' column
+        await sql`
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_entries' AND column_name='session') THEN
+                    ALTER TABLE log_entries ADD COLUMN session TEXT;
+                END IF;
+            END $$;
+        `;
+
+        // 3. Ensure default teacher account and settings exist
         await sql`
             INSERT INTO accounts (id, username, password, role, display_name)
             VALUES ('teacher_001', 'gvcnql', 'thptql', 'teacher', 'Nguyễn Thanh Cong')
             ON CONFLICT (id) DO NOTHING
         `;
-
-        // 6. Ensure default settings exist
         await sql`INSERT INTO class_info (id, name, school_year, teacher_name) VALUES (1, '10A1', '2025 - 2026', 'Nguyễn Thanh Cong') ON CONFLICT (id) DO NOTHING`;
         await sql`INSERT INTO grade_thresholds (id) VALUES (1) ON CONFLICT (id) DO NOTHING`;
 
         console.log('[Database] Schema and seed verification completed.');
     } catch (error) {
         console.error('[Database] Migration failed:', error);
-        // We don't throw here to avoid blocking the whole app if one minor check fails
     }
 }
