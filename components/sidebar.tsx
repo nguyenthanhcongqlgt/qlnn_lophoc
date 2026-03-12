@@ -141,29 +141,19 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
         student: 'from-slate-400 to-slate-500',
     }
 
+    const getInitials = (name: string) => {
+        if (!name) return "GV";
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
     const sidebarRef = useRef<HTMLDivElement>(null)
 
-    // Handle click outside to collapse
-    useEffect(() => {
-        if (isCollapsed) return
-
-        function handleClickOutside(event: MouseEvent) {
-            if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
-                // If clicked outside the sidebar, collapse it
-                setIsCollapsed(true)
-            }
-        }
-
-        document.addEventListener("mousedown", handleClickOutside)
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside)
-        }
-    }, [isCollapsed])
 
     return (
         <div
             ref={sidebarRef}
-            onMouseEnter={() => !mobile && setIsCollapsed(false)}
             className={cn(
                 "flex h-screen flex-col bg-white border-r border-slate-100 transition-all duration-300 ease-in-out z-40 relative",
                 isCollapsed ? "w-[72px]" : "w-72",
@@ -272,10 +262,12 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center gap-3 px-1">
                             <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${roleBadgeColors[userRole]} flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0`}>
-                                {ROLE_SHORT_LABELS[userRole]}
+                                {(userRole === 'teacher' && classInfo?.teacherName) ? getInitials(classInfo.teacherName) : ROLE_SHORT_LABELS[userRole]}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-slate-700 truncate">{user?.displayName || 'Người dùng'}</p>
+                                <p className="text-sm font-semibold text-slate-700 truncate">
+                                    {(userRole === 'teacher' && classInfo?.teacherName) ? classInfo.teacherName : (user?.displayName || 'Người dùng')}
+                                </p>
                                 <p className="text-xs text-slate-500 truncate">{user?.positionName || ROLE_LABELS[userRole]}</p>
                             </div>
                         </div>
@@ -300,9 +292,9 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
                     <div className="flex flex-col items-center gap-3 py-1">
                         <div
                             className={`w-8 h-8 rounded-full bg-gradient-to-br ${roleBadgeColors[userRole]} flex items-center justify-center text-xs font-bold text-white shadow-sm cursor-help`}
-                            title={`${user?.displayName} - ${user?.positionName || ROLE_LABELS[userRole]}`}
+                            title={`${(userRole === 'teacher' && classInfo?.teacherName) ? classInfo.teacherName : (user?.displayName || 'Người dùng')} - ${user?.positionName || ROLE_LABELS[userRole]}`}
                         >
-                            {ROLE_SHORT_LABELS[userRole]}
+                            {(userRole === 'teacher' && classInfo?.teacherName) ? getInitials(classInfo.teacherName) : ROLE_SHORT_LABELS[userRole]}
                         </div>
                         <button
                             onClick={openChangePw}

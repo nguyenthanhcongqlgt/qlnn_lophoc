@@ -399,6 +399,12 @@ export default function ReportPage() {
             signTitle.font = { name: 'Times New Roman', size: 11, bold: true };
             signTitle.alignment = { horizontal: 'center' };
 
+            const signName = sheet.getCell(`E${lastRowIndex + 4}`);
+            sheet.mergeCells(`E${lastRowIndex + 4}:G${lastRowIndex + 4}`);
+            signName.value = classInfo.teacherName || '...........................................';
+            signName.font = { name: 'Times New Roman', size: 11, bold: true };
+            signName.alignment = { horizontal: 'center' };
+
             // Export to ArrayBuffer and trigger download
             const buffer = await workbook.xlsx.writeBuffer()
             saveAs(new Blob([buffer]), `bao-cao-ne-nep_${startDate}_${endDate}.xlsx`)
@@ -1116,7 +1122,7 @@ export default function ReportPage() {
                         <p className="font-bold">NGƯỜI LẬP BIỂU</p>
                         <p className="italic text-xs">(Ký và ghi rõ họ tên)</p>
                         <div className="h-24"></div>
-                        <p className="font-bold">{user?.displayName || '...........................................'}</p>
+                        <p className="font-bold">{classInfo.teacherName || '...........................................'}</p>
                     </div>
                 </div>
             </div>
