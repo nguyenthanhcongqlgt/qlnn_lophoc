@@ -103,6 +103,23 @@ export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
+        const deleteAllByType = searchParams.get('deleteAllByType');
+
+        if (deleteAllByType) {
+            if (hasPostgres()) {
+                const { sql } = await import('@vercel/postgres');
+                await sql`DELETE FROM incident_types WHERE type = ${deleteAllByType}`;
+            } else {
+                const store = getStore();
+                Object.keys(store.incident_types).forEach(key => {
+                    if (store.incident_types[key].type === deleteAllByType) {
+                        delete store.incident_types[key];
+                    }
+                });
+            }
+            return NextResponse.json({ success: true });
+        }
+
         if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
         if (hasPostgres()) {

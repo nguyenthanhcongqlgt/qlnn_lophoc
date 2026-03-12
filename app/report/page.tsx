@@ -389,7 +389,7 @@ export default function ReportPage() {
             sheet.mergeCells(`A${lastRowIndex}:D${lastRowIndex}`); // Dành cho bên trái
             sheet.mergeCells(`E${lastRowIndex}:G${lastRowIndex}`); // Dành cho bên phải (Người lập)
             const signatureCell = sheet.getCell(`E${lastRowIndex}`);
-            signatureCell.value = 'Ngày ...... tháng ...... năm ......';
+            signatureCell.value = format(new Date(), "'Ngày' dd 'tháng' MM 'năm' yyyy");
             signatureCell.font = { name: 'Times New Roman', size: 11, italic: true };
             signatureCell.alignment = { horizontal: 'center' };
 
@@ -1112,7 +1112,7 @@ export default function ReportPage() {
                 <div className="print-signatures">
                     <div></div>
                     <div className="text-center">
-                        <p className="italic mb-1">Ngày ...... tháng ...... năm 20....</p>
+                        <p className="italic mb-1">{format(new Date(), "'Ngày' dd 'tháng' MM 'năm' yyyy")}</p>
                         <p className="font-bold">NGƯỜI LẬP BIỂU</p>
                         <p className="italic text-xs">(Ký và ghi rõ họ tên)</p>
                         <div className="h-24"></div>

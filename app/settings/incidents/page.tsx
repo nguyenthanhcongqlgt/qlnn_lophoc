@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/toast'
 import {
     initializeData, getViolationTypes, getAchievementTypes,
     addIncidentType, updateIncidentType, deleteIncidentType,
-    importIncidentTypes
+    importIncidentTypes, deleteIncidentTypesByType
 } from '@/lib/storage'
 import { IncidentType } from '@/types'
 import { AlertTriangle, Award, Plus, Pencil, Trash2, Download, Upload } from 'lucide-react'
@@ -47,6 +47,7 @@ export default function IncidentsSettingsPage() {
     const [formContent, setFormContent] = useState('')
     const [formPoint, setFormPoint] = useState(0)
     const [deleteTarget, setDeleteTarget] = useState<{ item: IncidentType; type: 'violation' | 'achievement' } | null>(null)
+    const [bulkDeleteType, setBulkDeleteType] = useState<'violation' | 'achievement' | null>(null)
 
     // Excel import
     const violationFileRef = useRef<HTMLInputElement>(null)
@@ -114,6 +115,14 @@ export default function IncidentsSettingsPage() {
         refresh()
     }
 
+    const handleBulkDelete = async () => {
+        if (!bulkDeleteType) return
+        await deleteIncidentTypesByType(bulkDeleteType)
+        setBulkDeleteType(null)
+        showToast(`Đã xoá hết danh sách ${bulkDeleteType === 'violation' ? 'vi phạm' : 'việc tốt'}!`, 'info')
+        refresh()
+    }
+
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'violations' | 'achievements') => {
         const file = e.target.files?.[0]
         if (!file) return
@@ -172,6 +181,15 @@ export default function IncidentsSettingsPage() {
                                 <Plus className="h-3.5 w-3.5" />
                                 Thêm
                             </button>
+                            {violations.length > 0 && (
+                                <button
+                                    onClick={() => setBulkDeleteType('violation')}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-red-50 hover:text-red-600 transition-colors"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Xoá hết
+                                </button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>
@@ -221,6 +239,15 @@ export default function IncidentsSettingsPage() {
                                 <Plus className="h-3.5 w-3.5" />
                                 Thêm
                             </button>
+                            {achievements.length > 0 && (
+                                <button
+                                    onClick={() => setBulkDeleteType('achievement')}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-red-50 hover:text-red-600 transition-colors"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Xoá hết
+                                </button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>
@@ -296,6 +323,15 @@ export default function IncidentsSettingsPage() {
                 title="Xoá nội dung"
                 message={`Bạn có chắc chắn muốn xoá "${deleteTarget?.item.content}"?`}
                 confirmText="Xoá"
+            />
+
+            <ConfirmDialog
+                open={!!bulkDeleteType}
+                onClose={() => setBulkDeleteType(null)}
+                onConfirm={handleBulkDelete}
+                title={`Xoá toàn bộ ${bulkDeleteType === 'violation' ? 'vi phạm' : 'việc tốt'}`}
+                message={`Bạn có chắc chắn muốn xoá HẾT danh sách ${bulkDeleteType === 'violation' ? 'vi phạm' : 'việc tốt'} không? Hành động này không thể hoàn tác.`}
+                confirmText="Xoá tất cả"
             />
 
             <Dialog

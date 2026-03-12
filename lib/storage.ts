@@ -139,6 +139,10 @@ export async function deleteIncidentType(id: string): Promise<void> {
     await fetch(`/api/incidents?id=${id}`, { method: 'DELETE' });
 }
 
+export async function deleteIncidentTypesByType(type: 'violation' | 'achievement'): Promise<void> {
+    await fetch(`/api/incidents?deleteAllByType=${type}`, { method: 'DELETE' });
+}
+
 // ── Subjects (Môn học) ──
 
 export async function getSubjects(): Promise<{ id: string, name: string }[]> {
