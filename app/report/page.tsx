@@ -21,7 +21,7 @@ import * as ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import Link from 'next/link'
 
-type TimeRange = 'week' | 'month' | 'semester' | 'custom'
+type TimeRange = 'week' | 'month' | 'semester' | 'year' | 'custom'
 
 // Helper: get start of current week (Monday)
 function getWeekStart(): string {
@@ -47,6 +47,23 @@ function getSemesterStartFallback(): string {
         return format(new Date(d.getFullYear(), 0, 15), 'yyyy-MM-dd')
     } else {
         return format(new Date(d.getFullYear(), 7, 15), 'yyyy-MM-dd')
+    }
+}
+
+function getYearStart(schoolYear?: string): string {
+    if (schoolYear) {
+        const match = schoolYear.match(/^(\d{4})/)
+        if (match) {
+            return format(new Date(parseInt(match[1]), 8, 1), 'yyyy-MM-dd')
+        }
+    }
+    const d = new Date()
+    const currentYear = d.getFullYear()
+    const month = d.getMonth()
+    if (month < 8) {
+        return format(new Date(currentYear - 1, 8, 1), 'yyyy-MM-dd')
+    } else {
+        return format(new Date(currentYear, 8, 1), 'yyyy-MM-dd')
     }
 }
 
@@ -159,10 +176,12 @@ export default function ReportPage() {
                 }
                 return { startDate: getSemesterStartFallback(), endDate: getToday() }
             }
+            case 'year':
+                return { startDate: getYearStart(classInfo.schoolYear), endDate: getToday() }
             case 'custom':
                 return { startDate: customStart, endDate: customEnd }
         }
-    }, [timeRange, customStart, customEnd, selectedSemester, classInfo.semesters])
+    }, [timeRange, customStart, customEnd, selectedSemester, classInfo.semesters, classInfo.schoolYear])
 
     // Build a set of student IDs belonging to the selected team
     const teamStudentIds = useMemo(() => {
@@ -424,6 +443,7 @@ export default function ReportPage() {
                 const sem = classInfo.semesters?.find(s => s.id === selectedSemester)
                 return sem ? sem.name : 'Học kì'
             }
+            case 'year': return 'Năm học'
             case 'custom': return 'Tuỳ chỉnh'
         }
     }
@@ -558,6 +578,12 @@ export default function ReportPage() {
                         onClick={() => setTimeRange('semester')}
                         icon={<GraduationCap className="h-4 w-4" />}
                         label="Học kì"
+                    />
+                    <TimeTab
+                        active={timeRange === 'year'}
+                        onClick={() => setTimeRange('year')}
+                        icon={<BookOpen className="h-4 w-4" />}
+                        label="Năm học"
                     />
                     <TimeTab
                         active={timeRange === 'custom'}

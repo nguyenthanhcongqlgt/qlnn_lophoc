@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, AlignmentType, HeadingLevel } from 'docx'
 import { saveAs } from 'file-saver'
 
-type TimeRange = 'week' | 'month' | 'semester' | 'custom'
+type TimeRange = 'week' | 'month' | 'semester' | 'year' | 'custom'
 
 // Helper functions for dates
 function getWeekStart(): string {
@@ -40,6 +40,23 @@ function getSemesterStartFallback(): string {
         startMonth = 8
     }
     return format(new Date(year, startMonth, 1), 'yyyy-MM-dd')
+}
+
+function getYearStart(schoolYear?: string): string {
+    if (schoolYear) {
+        const match = schoolYear.match(/^(\d{4})/)
+        if (match) {
+            return format(new Date(parseInt(match[1]), 8, 1), 'yyyy-MM-dd')
+        }
+    }
+    const d = new Date()
+    const currentYear = d.getFullYear()
+    const month = d.getMonth()
+    if (month < 8) {
+        return format(new Date(currentYear - 1, 8, 1), 'yyyy-MM-dd')
+    } else {
+        return format(new Date(currentYear, 8, 1), 'yyyy-MM-dd')
+    }
 }
 
 function getToday(): string {
@@ -127,9 +144,10 @@ export default function StudentDetailedReportPage() {
                 if (sem) return { startDate: sem.startDate, endDate: sem.endDate }
                 return { startDate: getSemesterStartFallback(), endDate: getToday() }
             }
+            case 'year': return { startDate: getYearStart(classInfo.schoolYear), endDate: getToday() }
             case 'custom': return { startDate: customStart, endDate: customEnd }
         }
-    }, [timeRange, customStart, customEnd, selectedSemester, classInfo.semesters])
+    }, [timeRange, customStart, customEnd, selectedSemester, classInfo.semesters, classInfo.schoolYear])
 
     // Filter logs
     const filteredLogs = useMemo(() => {
@@ -509,6 +527,7 @@ export default function StudentDetailedReportPage() {
                     <TimeTab active={timeRange === 'week'} onClick={() => setTimeRange('week')} icon={<CalendarDays className="h-4 w-4" />} label="Tuần này" />
                     <TimeTab active={timeRange === 'month'} onClick={() => setTimeRange('month')} icon={<CalendarRange className="h-4 w-4" />} label="Tháng này" />
                     <TimeTab active={timeRange === 'semester'} onClick={() => setTimeRange('semester')} icon={<GraduationCap className="h-4 w-4" />} label="Học kì" />
+                    <TimeTab active={timeRange === 'year'} onClick={() => setTimeRange('year')} icon={<BookOpen className="h-4 w-4" />} label="Năm học" />
                     <TimeTab active={timeRange === 'custom'} onClick={() => setTimeRange('custom')} icon={<Calendar className="h-4 w-4" />} label="Tuỳ chỉnh" />
                 </div>
 
