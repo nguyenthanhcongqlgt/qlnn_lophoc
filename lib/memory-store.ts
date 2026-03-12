@@ -148,6 +148,9 @@ function createFileBackedStore(): MemoryStore {
 const store: MemoryStore = createFileBackedStore();
 
 export function hasPostgres(): boolean {
+    if (process.env.STORAGE_URL && !process.env.POSTGRES_URL) {
+        process.env.POSTGRES_URL = process.env.STORAGE_URL;
+    }
     return !!process.env.POSTGRES_URL;
 }
 
