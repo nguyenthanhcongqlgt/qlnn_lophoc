@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { initializeData, getStudentsWithScores, getLogs, getClassInfo, getGradeThresholds, getAttendance } from '@/lib/storage'
-import { LogEntry, StudentWithScore, ClassInfo, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord } from '@/types'
+import { LogEntry, StudentWithScore, ClassInfo, GradeThresholds, ThresholdSet, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord, Semester } from '@/types'
 import { Calendar, CalendarDays, CalendarRange, GraduationCap, X, Users, User, BookOpen, Printer, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, isWithinInterval, parseISO } from 'date-fns'
 import Link from 'next/link'
@@ -42,20 +42,36 @@ function getSemesterStartFallback(): string {
     return format(new Date(year, startMonth, 1), 'yyyy-MM-dd')
 }
 
-function getYearStart(schoolYear?: string): string {
+function getYearRange(schoolYear?: string, semesters?: Semester[]): { startDate: string; endDate: string } {
+    const today = getToday()
+
+    // 1. Try to find Semester 1 (Học kì 1)
+    const sem1 = semesters?.find(s => s.name.toLowerCase().includes('1') || s.name.toLowerCase().includes('i'))
+    if (sem1?.startDate) {
+        return { startDate: sem1.startDate, endDate: today }
+    }
+
+    // 2. Fallback: Use September 1st
+    let startYear: number
     if (schoolYear) {
         const match = schoolYear.match(/^(\d{4})/)
         if (match) {
-            return format(new Date(parseInt(match[1]), 8, 1), 'yyyy-MM-dd')
+            startYear = parseInt(match[1])
+        } else {
+            const d = new Date()
+            startYear = d.getMonth() < 8 ? d.getFullYear() - 1 : d.getFullYear()
         }
-    }
-    const d = new Date()
-    const currentYear = d.getFullYear()
-    const month = d.getMonth()
-    if (month < 8) {
-        return format(new Date(currentYear - 1, 8, 1), 'yyyy-MM-dd')
     } else {
-        return format(new Date(currentYear, 8, 1), 'yyyy-MM-dd')
+        const d = new Date()
+        startYear = d.getMonth() < 8 ? d.getFullYear() - 1 : d.getFullYear()
+    }
+
+    const startDate = format(new Date(startYear, 8, 1), 'yyyy-MM-dd')
+    const maxEnd = format(new Date(startYear + 1, 4, 31), 'yyyy-MM-dd')
+
+    return {
+        startDate,
+        endDate: today > maxEnd ? maxEnd : today
     }
 }
 
@@ -144,7 +160,7 @@ export default function StudentDetailedReportPage() {
                 if (sem) return { startDate: sem.startDate, endDate: sem.endDate }
                 return { startDate: getSemesterStartFallback(), endDate: getToday() }
             }
-            case 'year': return { startDate: getYearStart(classInfo.schoolYear), endDate: getToday() }
+            case 'year': return getYearRange(classInfo.schoolYear, classInfo.semesters)
             case 'custom': return { startDate: customStart, endDate: customEnd }
         }
     }, [timeRange, customStart, customEnd, selectedSemester, classInfo.semesters, classInfo.schoolYear])

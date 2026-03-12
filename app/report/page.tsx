@@ -50,20 +50,36 @@ function getSemesterStartFallback(): string {
     }
 }
 
-function getYearStart(schoolYear?: string): string {
+function getYearRange(schoolYear?: string, semesters?: Semester[]): { startDate: string; endDate: string } {
+    const today = getToday()
+
+    // 1. Try to find Semester 1 (Học kì 1)
+    const sem1 = semesters?.find(s => s.name.toLowerCase().includes('1') || s.name.toLowerCase().includes('i'))
+    if (sem1?.startDate) {
+        return { startDate: sem1.startDate, endDate: today }
+    }
+
+    // 2. Fallback: Use September 1st
+    let startYear: number
     if (schoolYear) {
         const match = schoolYear.match(/^(\d{4})/)
         if (match) {
-            return format(new Date(parseInt(match[1]), 8, 1), 'yyyy-MM-dd')
+            startYear = parseInt(match[1])
+        } else {
+            const d = new Date()
+            startYear = d.getMonth() < 8 ? d.getFullYear() - 1 : d.getFullYear()
         }
-    }
-    const d = new Date()
-    const currentYear = d.getFullYear()
-    const month = d.getMonth()
-    if (month < 8) {
-        return format(new Date(currentYear - 1, 8, 1), 'yyyy-MM-dd')
     } else {
-        return format(new Date(currentYear, 8, 1), 'yyyy-MM-dd')
+        const d = new Date()
+        startYear = d.getMonth() < 8 ? d.getFullYear() - 1 : d.getFullYear()
+    }
+
+    const startDate = format(new Date(startYear, 8, 1), 'yyyy-MM-dd')
+    const maxEnd = format(new Date(startYear + 1, 4, 31), 'yyyy-MM-dd')
+
+    return {
+        startDate,
+        endDate: today > maxEnd ? maxEnd : today
     }
 }
 
@@ -177,7 +193,7 @@ export default function ReportPage() {
                 return { startDate: getSemesterStartFallback(), endDate: getToday() }
             }
             case 'year':
-                return { startDate: getYearStart(classInfo.schoolYear), endDate: getToday() }
+                return getYearRange(classInfo.schoolYear, classInfo.semesters)
             case 'custom':
                 return { startDate: customStart, endDate: customEnd }
         }
