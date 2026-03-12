@@ -189,12 +189,6 @@ export default function StudentsPage() {
                     <p className="text-slate-500 text-sm mt-1">{students.length} học sinh</p>
                 </div>
                 <div className="flex gap-2">
-                    {isRole('teacher') && students.length > 0 && (
-                        <Button onClick={() => setShowDeleteAllConfirm(true)} variant="destructive" className="flex items-center gap-2 px-4 py-2.5 rounded-xl">
-                            <Trash2 className="h-4 w-4" />
-                            Xoá tất cả học sinh
-                        </Button>
-                    )}
                     {can('add_student') && (
                         <Button onClick={openAdd} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl">
                             <Plus className="h-4 w-4" />
