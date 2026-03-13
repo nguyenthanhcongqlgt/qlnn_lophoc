@@ -19,8 +19,6 @@ import {
 import { sortByName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { format, isWithinInterval, parseISO } from 'date-fns'
-import * as ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
 import Link from 'next/link'
 
 type TimeRange = 'week' | 'month' | 'semester' | 'year' | 'custom'
@@ -315,6 +313,8 @@ export default function ReportPage() {
     // Export Excel A4
     const exportExcel = async () => {
         try {
+            const ExcelJS = await import('exceljs')
+            const { saveAs } = await import('file-saver')
             const workbook = new ExcelJS.Workbook()
             const sheet = workbook.addWorksheet('Báo Cáo Nề Nếp', {
                 pageSetup: { paperSize: 9, orientation: 'portrait', margins: { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 } }

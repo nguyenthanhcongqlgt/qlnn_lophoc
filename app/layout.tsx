@@ -2,12 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { Sidebar } from '@/components/sidebar'
 import { Menu, BookOpen } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { getClassInfo } from '@/lib/storage'
 import { ClassInfo } from '@/types'
+
+const inter = Inter({
+    subsets: ['latin', 'vietnamese'],
+    display: 'swap',
+    variable: '--font-inter',
+})
 
 export default function RootLayout({
     children,
@@ -17,13 +24,10 @@ export default function RootLayout({
     return (
         <html lang="vi" suppressHydrationWarning>
             <head>
-                <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
                 <title>Sổ Nề Nếp Điện Tử</title>
                 <meta name="description" content="Hệ thống quản lý nề nếp học sinh dành cho giáo viên chủ nhiệm" />
             </head>
-            <body suppressHydrationWarning>
+            <body className={inter.variable} suppressHydrationWarning>
                 <AuthProvider>
                     <LayoutShell>{children}</LayoutShell>
                 </AuthProvider>

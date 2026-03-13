@@ -8,8 +8,6 @@ import { LogEntry, StudentWithScore, ClassInfo, GradeThresholds, getConductGrade
 import { Calendar, CalendarDays, CalendarRange, GraduationCap, X, Users, User, BookOpen, Printer, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, isWithinInterval, parseISO } from 'date-fns'
 import Link from 'next/link'
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, AlignmentType, HeadingLevel } from 'docx'
-import { saveAs } from 'file-saver'
 
 type TimeRange = 'week' | 'month' | 'semester' | 'year' | 'custom'
 
@@ -249,6 +247,8 @@ export default function StudentDetailedReportPage() {
         }
 
         try {
+            const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, AlignmentType, HeadingLevel } = await import('docx')
+            const { saveAs } = await import('file-saver')
             const children = [];
 
             for (let i = 0; i < paginatedBreakdown.length; i++) {

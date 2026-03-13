@@ -7,6 +7,9 @@ import { generateBaseUsername } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
+// Flag: only run migration once per cold start
+let migrated = false;
+
 const getRoleFromPosition = (pos: string | null) => {
     if (['Lớp trưởng', 'Bí thư', 'Lớp phó học tập', 'Lớp phó lao động'].includes(pos || '')) return 'class_leader';
     if (pos === 'Tổ trưởng') return 'team_leader';
@@ -18,10 +21,13 @@ export async function GET() {
         if (hasPostgres()) {
             const { sql } = await import('@vercel/postgres');
 
-            // Lazy migrations to ensure columns exist before reading
-            await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`;
-            await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS dropout_date VARCHAR(20)`;
-            await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS date_of_birth VARCHAR(20)`;
+            // Lazy migrations to ensure columns exist (only once per cold start)
+            if (!migrated) {
+                await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`;
+                await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS dropout_date VARCHAR(20)`;
+                await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS date_of_birth VARCHAR(20)`;
+                migrated = true;
+            }
 
             const { rows } = await sql`
                 SELECT s.id, s.name, s.team, s.position, s.initial_score AS "initialScore", s.note, s.status, s.dropout_date AS "dropoutDate", s.date_of_birth AS "dateOfBirth", a.username
@@ -311,31 +317,6 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
-        if (deleteAll === 'true') {
-            if (hasPostgres()) {
-                const { sql } = await import('@vercel/postgres');
-                await sql`DELETE FROM students`;
-                await sql`DELETE FROM log_entries`;
-                await sql`DELETE FROM attendance`;
-                // Keep ONLY teacher accounts
-                await sql`DELETE FROM accounts WHERE role != 'teacher'`;
-            } else {
-                const store = getStore();
-                store.students = {};
-                store.log_entries = {};
-                store.attendance = {};
-
-                // Clear all student accounts
-                const teacherAccounts: Record<string, any> = {};
-                for (const id in store.accounts) {
-                    if (store.accounts[id].role === 'teacher') {
-                        teacherAccounts[id] = store.accounts[id];
-                    }
-                }
-                store.accounts = teacherAccounts;
-            }
-            return NextResponse.json({ success: true });
-        }
 
         if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
