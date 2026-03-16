@@ -549,7 +549,7 @@ export default function ReportPage() {
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                         <Link
                             href="/report/student"
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 text-sm font-medium rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 text-sm font-medium rounded-full hover:bg-indigo-100 transition-colors shadow-sm"
                         >
                             <Contact className="h-4 w-4" />
                             In phiếu cá nhân
@@ -557,7 +557,7 @@ export default function ReportPage() {
                         {can('print_report') && (
                             <button
                                 onClick={handlePrint}
-                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors shadow-sm"
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 <Printer className="h-4 w-4" />
                                 In báo cáo
@@ -566,7 +566,7 @@ export default function ReportPage() {
                         {can('export_report') && (
                             <button
                                 onClick={exportExcel}
-                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors shadow-sm"
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 <FileSpreadsheet className="h-4 w-4" />
                                 Xuất Excel
