@@ -10,9 +10,9 @@ import {
     createNewSchoolYear, getStudents
 } from '@/lib/storage'
 import { ClassInfo, Semester, GradeThresholds, DEFAULT_GRADE_THRESHOLDS, getConductGrade, Student, ThresholdSet } from '@/types'
-import { Plus, Pencil, Trash2, School, Save, GraduationCap, Calendar, Upload, X, ShieldCheck, UserCog } from 'lucide-react'
+import { Plus, Pencil, Trash2, School, Save, GraduationCap, Calendar, Upload, X, ShieldCheck, UserCog, Image as ImageIcon } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { changeUsername } from '@/lib/auth'
+import { changeUsername, changeAvatar } from '@/lib/auth'
 
 // Helper function to read file as base64
 const readFileAsBase64 = (file: File): Promise<string> => {
@@ -39,9 +39,10 @@ export default function GeneralSettingsPage() {
     const [editingSemester, setEditingSemester] = useState<Semester | null>(null)
     const [semesterForm, setSemesterForm] = useState({ name: '', startDate: '', endDate: '' })
 
-    // Change Username
+    // Change Account Info
     const { user, logout } = useAuth()
     const [usernameForm, setUsernameForm] = useState('')
+    const [avatarForm, setAvatarForm] = useState<string | null>(null)
 
     const { showToast, ToastComponent } = useToast()
 
@@ -64,8 +65,9 @@ export default function GeneralSettingsPage() {
     }
 
     useEffect(() => {
-        if (user && user.role === 'teacher') {
+        if (user) {
             setUsernameForm(user.username)
+            setAvatarForm(user.avatar || null)
         }
     }, [user])
 
@@ -86,25 +88,37 @@ export default function GeneralSettingsPage() {
         showToast('Đã lưu mức xếp loại rèn luyện!')
     }
 
-    const handleSaveUsername = async () => {
-        if (!user || user.role !== 'teacher') return;
-        if (!usernameForm.trim()) {
-            showToast('Tên đăng nhập không được để trống!', 'error');
-            return;
+    const handleSaveAccount = async () => {
+        if (!user) return;
+        let usernameChanged = false;
+        let avatarChanged = false;
+
+        if (user.role === 'teacher' && usernameForm.trim() && usernameForm.trim() !== user.username) {
+            const success = await changeUsername(user.id, usernameForm.trim());
+            if (!success) {
+                showToast('Đổi tên đăng nhập thất bại. Tên đăng nhập này có thể đã tồn tại!', 'error');
+                return;
+            }
+            usernameChanged = true;
         }
-        if (usernameForm.trim() === user.username) {
-            showToast('Tên đăng nhập không thay đổi!', 'info');
-            return;
+
+        if (avatarForm !== (user.avatar || null)) {
+            const success = await changeAvatar(user.id, avatarForm);
+            if (!success) {
+                showToast('Không thể cập nhật ảnh đại diện!', 'error');
+                return;
+            }
+            avatarChanged = true;
         }
-        const success = await changeUsername(user.id, usernameForm.trim());
-        if (success) {
-            showToast('Đã đổi tài khoản thành công! Bạn sẽ bị đăng xuất để đăng nhập lại bằng Tên đăng nhập mới.');
+
+        if (usernameChanged || avatarChanged) {
+            showToast('Đã cập nhật tài khoản thành công! Bạn sẽ bị đăng xuất để đăng nhập lại.');
             setTimeout(() => {
                 logout();
                 window.location.href = '/login';
             }, 3000);
         } else {
-            showToast('Đổi tài khoản thất bại. Tên đăng nhập này có thể đã tồn tại!', 'error');
+            showToast('Không có thay đổi nào.', 'info');
         }
     }
 
@@ -277,6 +291,37 @@ export default function GeneralSettingsPage() {
                                 placeholder="Nguyễn Văn A"
                             />
                         </div>
+                        <div>
+                            <label className="input-label" title="Số lượng vi phạm trong 1 tuần để hiển thị cảnh báo ở trang chủ">Cảnh báo vi phạm tuần</label>
+                            <input
+                                type="number"
+                                value={classInfo.alertThreshold ?? 2}
+                                onChange={e => setClassInfo({ ...classInfo, alertThreshold: Number(e.target.value) })}
+                                className="input-field"
+                                placeholder="2"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">Số vi phạm/tuần để hiện cảnh báo đỏ ngoài Bảng tin.</p>
+                        </div>
+                        <div>
+                            <label className="input-label" title="3 mốc số lượng vi phạm để đổi màu heatmap (vd: 1,3,5)">Mốc Heatmap</label>
+                            <input
+                                type="text"
+                                value={(classInfo.heatmapThresholds || [1, 3, 5]).join(',')}
+                                onChange={e => {
+                                    const parts = e.target.value.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n));
+                                    if (parts.length === 3) {
+                                        setClassInfo({ ...classInfo, heatmapThresholds: parts });
+                                    } else {
+                                        setClassInfo({ ...classInfo, heatmapThresholds: classInfo.heatmapThresholds || [1, 3, 5] });
+                                    }
+                                }}
+                                className="input-field"
+                                placeholder="1,3,5"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">
+                                3 mốc vi phạm để đổi màu: <span className="text-emerald-500">Màu nhạt (1)</span>, <span className="text-emerald-600">Màu vừa (3)</span>, <span className="text-emerald-700">Màu đậm (5)</span>.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="mt-5 pt-4 border-t border-slate-100">
@@ -399,36 +444,106 @@ export default function GeneralSettingsPage() {
                 </CardContent>
             </Card>
 
-            {user?.role === 'teacher' && (
+            {user && (
                 <Card className="animate-slide-up" style={{ animationDelay: '25ms' }}>
                     <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
                             <UserCog className="h-4 w-4 text-indigo-500" />
-                            Đổi Tên đăng nhập (Tài khoản GVCN)
+                            Quản lý tài khoản
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-slate-500 mb-4">
-                            Ghi chú: Sau khi đổi tên đăng nhập thành công, bạn sẽ được yêu cầu đăng nhập lại với Tên đăng nhập mới.
+                            Cập nhật ảnh đại diện (avatar) hoặc đổi tên đăng nhập của bạn. Ảnh này sẽ hiển thị trên thanh điều hướng và các phiếu đánh giá. (Sẽ cần đăng nhập lại sau khi lưu)
                         </p>
-                        <div className="max-w-sm">
-                            <label className="input-label">Tên đăng nhập hiện tại: <span className="font-bold">{user.username}</span></label>
-                            <div className="flex items-center gap-3 mt-2">
-                                <input
-                                    type="text"
-                                    value={usernameForm}
-                                    onChange={e => setUsernameForm(e.target.value)}
-                                    className="input-field max-w-[200px]"
-                                    placeholder="Tên đăng nhập mới"
-                                />
-                                <button
-                                    onClick={handleSaveUsername}
-                                    disabled={!usernameForm.trim() || usernameForm.trim() === user.username}
-                                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Đổi Tên đăng nhập
-                                </button>
+
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                            {/* Avatar Section */}
+                            <div className="shrink-0">
+                                <label className="input-label mb-2 block">Ảnh đại diện (Avatar)</label>
+                                <div className="flex items-end gap-3">
+                                    {avatarForm ? (
+                                        <div className="relative border border-slate-200 rounded-full bg-slate-50 p-1 shrink-0 shadow-sm">
+                                            <img src={avatarForm} alt="Avatar" className="w-[72px] h-[72px] object-cover rounded-full bg-white" />
+                                            <button
+                                                onClick={() => setAvatarForm(null)}
+                                                className="absolute -top-1 -right-1 p-1 bg-white border border-slate-200 rounded-full text-red-500 hover:bg-red-50 shadow-sm"
+                                                title="Xoá Avatar"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-[72px] h-[72px] border-2 border-dashed border-slate-300 rounded-full bg-slate-50 flex flex-col items-center justify-center text-slate-400 shrink-0">
+                                            <ImageIcon className="w-6 h-6 mb-0.5 opacity-50" />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <input
+                                            type="file"
+                                            id="avatar-upload"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0]
+                                                if (file) {
+                                                    if (file.size > 2 * 1024 * 1024) {
+                                                        showToast('Kích thước ảnh không vượt quá 2MB', 'error')
+                                                        return;
+                                                    }
+                                                    try {
+                                                        const b64 = await readFileAsBase64(file);
+                                                        setAvatarForm(b64);
+                                                    } catch (error) {
+                                                        showToast('Không thể đọc ảnh', 'error');
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                        <label
+                                            htmlFor="avatar-upload"
+                                            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer shadow-sm transition-colors flex items-center gap-1.5"
+                                        >
+                                            <Upload className="w-3.5 h-3.5 text-slate-500" />
+                                            Tải ảnh lên
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
+
+                            {/* Username Section */}
+                            <div className="flex-1 max-w-sm mt-4 sm:mt-0">
+                                {user.role === 'teacher' ? (
+                                    <>
+                                        <label className="input-label">Tên đăng nhập hiện tại: <span className="font-bold">{user.username}</span></label>
+                                        <div className="mt-2">
+                                            <input
+                                                type="text"
+                                                value={usernameForm}
+                                                onChange={e => setUsernameForm(e.target.value)}
+                                                className="input-field max-w-[200px]"
+                                                placeholder="Tên đăng nhập mới"
+                                            />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 mt-6">
+                                        <span className="font-semibold text-slate-700 block mb-1">Tài khoản: {user.username}</span>
+                                        Chỉ giáo viên chủ nhiệm mới có quyền thay đổi tên đăng nhập.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-6">
+                            <button
+                                onClick={handleSaveAccount}
+                                disabled={(user.role === 'teacher' && (!usernameForm.trim() || usernameForm.trim() === user.username)) && avatarForm === (user.avatar || null)}
+                                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Cập nhật tài khoản
+                            </button>
                         </div>
                     </CardContent>
                 </Card>

@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Settings, ShieldAlert, BookOpen, Database, ChevronRight, UserCheck } from 'lucide-react'
+import { Settings, ShieldAlert, BookOpen, Database, ChevronRight, UserCheck, Users } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth-context'
 import { AlertTriangle } from 'lucide-react'
@@ -13,6 +13,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
     const navItems = [
         { name: 'Thông tin chung', href: '/settings/general', icon: Settings },
+        { name: 'Danh sách lớp', href: '/settings/students', icon: Users },
         { name: 'Danh mục nề nếp', href: '/settings/incidents', icon: ShieldAlert },
         { name: 'Chức vụ', href: '/settings/positions', icon: UserCheck },
         { name: 'Môn học', href: '/settings/subjects', icon: BookOpen },

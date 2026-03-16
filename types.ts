@@ -68,6 +68,8 @@ export interface ClassInfo {
   logo?: string | null;
   printLogo?: boolean;
   authorizedStudents?: string[]; // Danh sách ID học sinh được uỷ quyền duyệt phiếu
+  alertThreshold?: number; // Số lần vi phạm trong tuần để cảnh báo
+  heatmapThresholds?: number[]; // Các mốc (3 mức) cho bản đồ nhiệt
 }
 
 // ── Xếp loại rèn luyện ──
@@ -166,6 +168,7 @@ export interface UserAccount {
   team?: string;      // Tổ (cho team_leader)
   canCreateLog?: boolean; // Được phép lập phiếu nề nếp (theo chức vụ)
   positionName?: string;  // Tên chức vụ cụ thể (vd: "Cờ đỏ", "Lớp trưởng")
+  avatar?: string | null; // Base64 image
 }
 
 export interface AuthSession {

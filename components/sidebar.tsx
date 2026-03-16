@@ -22,7 +22,6 @@ interface NavItem {
 
 const navigation: NavItem[] = [
     { name: 'Tổng quan', href: '/', icon: Home },
-    { name: 'Danh sách lớp', href: '/students', icon: Users },
     { name: 'Chấm nề nếp', href: '/log', icon: PlusCircle, requiredPermission: 'create_log' },
     { name: 'Điểm danh', href: '/attendance', icon: ClipboardCheck, requiredPermission: 'mark_attendance' },
     { name: 'Báo cáo', href: '/report', icon: FileText },

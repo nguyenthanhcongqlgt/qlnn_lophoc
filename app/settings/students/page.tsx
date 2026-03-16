@@ -257,7 +257,7 @@ export default function StudentsPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
-                                                    <Link href={`/students/${student.id}`} className={`font-medium transition-colors block shrink-0 max-w-[200px] sm:max-w-[250px] truncate ${student.status === 'dropped_out' ? 'text-red-600 line-through opacity-70' : 'text-indigo-600 hover:text-indigo-800 hover:underline'}`}>
+                                                    <Link href={`/settings/students/${student.id}`} className={`font-medium transition-colors block shrink-0 max-w-[200px] sm:max-w-[250px] truncate ${student.status === 'dropped_out' ? 'text-red-600 line-through opacity-70' : 'text-indigo-600 hover:text-indigo-800 hover:underline'}`}>
                                                         {student.name}
                                                     </Link>
                                                     {student.status === 'dropped_out' && (

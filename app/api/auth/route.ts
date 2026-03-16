@@ -10,7 +10,7 @@ async function getAccountsFromDB() {
         const { sql } = await import('@vercel/postgres');
         const { rows } = await sql`
             SELECT id, username, role, display_name AS "displayName",
-                   student_id AS "studentId", team
+                   student_id AS "studentId", team, avatar
             FROM accounts ORDER BY role, username
         `;
         return rows;
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
                 const { sql } = await import('@vercel/postgres');
                 const { rows } = await sql`
                     SELECT id, username, password, role, display_name AS "displayName",
-                           student_id AS "studentId", team
+                           student_id AS "studentId", team, avatar
                     FROM accounts
                     WHERE LOWER(username) = LOWER(${username})
                 `;
@@ -173,6 +173,20 @@ export async function PUT(req: NextRequest) {
                 }
                 if (store.accounts[id]) {
                     store.accounts[id].username = newUsername;
+                }
+            }
+            return NextResponse.json({ success: true });
+        }
+
+        if (action === 'changeAvatar') {
+            const { avatar } = body;
+            if (hasPostgres()) {
+                const { sql } = await import('@vercel/postgres');
+                await sql`UPDATE accounts SET avatar = ${avatar} WHERE id = ${id}`;
+            } else {
+                const store = getStore();
+                if (store.accounts[id]) {
+                    store.accounts[id].avatar = avatar;
                 }
             }
             return NextResponse.json({ success: true });

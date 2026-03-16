@@ -14,6 +14,8 @@ export default function Dashboard() {
     const [totalStudents, setTotalStudents] = useState(0)
     const [className, setClassName] = useState('')
     const [gradeThresholds, setGradeThresholds] = useState<GradeThresholds>(DEFAULT_GRADE_THRESHOLDS)
+    const [alertThreshold, setAlertThreshold] = useState(2)
+    const [heatmapThresholds, setHeatmapThresholds] = useState<number[]>([1, 3, 5])
     const [ready, setReady] = useState(false)
 
     useEffect(() => {
@@ -30,6 +32,8 @@ export default function Dashboard() {
             setTotalStudents(studentsData.filter(s => s.status !== 'dropped_out').length)
             setClassName(classInfo.name || 'Lớp học')
             setGradeThresholds(thresholds)
+            setAlertThreshold(classInfo.alertThreshold ?? 2)
+            setHeatmapThresholds(classInfo.heatmapThresholds || [1, 3, 5])
             setReady(true)
         })
     }, [])
@@ -88,7 +92,7 @@ export default function Dashboard() {
     })
 
     const warningStudents = Object.entries(violationCounts)
-        .filter(([_, count]) => count > 2)
+        .filter(([_, count]) => count >= alertThreshold)
         .map(([id, count]) => ({ student: students.find(s => s.id === id)!, count }))
         .filter(ws => ws.student !== undefined)
         .sort((a, b) => b.count - a.count)
@@ -189,7 +193,7 @@ export default function Dashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <ViolationHeatmap logs={logs} />
+                        <ViolationHeatmap logs={logs} thresholds={heatmapThresholds} />
                     </CardContent>
                 </Card>
 
@@ -478,16 +482,15 @@ function WeeklyChart({ data }: { data: ReturnType<typeof getWeekData> }) {
 }
 
 // ── Heatmap Component ──
-function ViolationHeatmap({ logs }: { logs: LogEntry[] }) {
+function ViolationHeatmap({ logs, thresholds = [1, 3, 5] }: { logs: LogEntry[], thresholds?: number[] }) {
     const data = getHeatmapData(logs)
     const maxCount = Math.max(...data.map(d => d.count), 1)
 
     const getIntensityColor = (count: number) => {
         if (count === 0) return 'bg-slate-50'
-        const ratio = count / maxCount
-        if (ratio < 0.3) return 'bg-orange-100 text-orange-800'
-        if (ratio < 0.6) return 'bg-orange-300 text-orange-900 border-none'
-        if (ratio < 0.8) return 'bg-red-400 text-white font-medium border-none'
+        if (count <= thresholds[0]) return 'bg-orange-100 text-orange-800'
+        if (count <= thresholds[1]) return 'bg-orange-300 text-orange-900 border-none'
+        if (count <= thresholds[2]) return 'bg-red-400 text-white font-medium border-none'
         return 'bg-red-600 text-white font-bold border-none shadow-md'
     }
 
@@ -533,15 +536,11 @@ function ViolationHeatmap({ logs }: { logs: LogEntry[] }) {
             </div>
 
             <div className="flex items-center justify-center gap-2 mt-4 text-[10px] text-slate-500">
-                <span>Ít VP</span>
-                <div className="flex gap-1">
-                    <div className="w-4 h-4 rounded-sm bg-slate-50 border border-slate-100"></div>
-                    <div className="w-4 h-4 rounded-sm bg-orange-100 border border-transparent"></div>
-                    <div className="w-4 h-4 rounded-sm bg-orange-300"></div>
-                    <div className="w-4 h-4 rounded-sm bg-red-400"></div>
-                    <div className="w-4 h-4 rounded-sm bg-red-600"></div>
-                </div>
-                <span>Nhiều VP</span>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-slate-50 border border-slate-100"></div> 0</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-orange-100 border border-transparent"></div> ≤{thresholds[0]}</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-orange-300"></div> ≤{thresholds[1]}</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-red-400"></div> ≤{thresholds[2]}</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-red-600"></div> &gt;{thresholds[2]}</div>
             </div>
         </div>
     )

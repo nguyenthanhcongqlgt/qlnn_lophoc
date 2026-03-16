@@ -395,12 +395,102 @@ body {
     display: none !important;
   }
 
-  /* Reset background and colors */
   body {
     background: white !important;
     color: black !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    line-height: 1.1 !important;
+  }
+
+  * {
+    line-height: 1.1 !important;
+  }
+
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* Force tighter paddings for cards and elements */
+  .p-4,
+  .p-5,
+  .p-6,
+  .sm\:p-6,
+  [class*="p-"] {
+    padding: 0px 4px !important;
+  }
+
+  .pt-0 {
+    padding-top: 0 !important;
+  }
+
+  .pt-5 {
+    padding-top: 2px !important;
+  }
+
+  .pb-5 {
+    padding-bottom: 0px !important;
+  }
+
+  .px-4 {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
+  .py-3 {
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+  }
+
+  .pb-3 {
+    padding-bottom: 0px !important;
+  }
+
+  /* Force tighter margins and gaps */
+  .space-y-6> :not([hidden])~ :not([hidden]),
+  .space-y-4> :not([hidden])~ :not([hidden]) {
+    margin-top: 2px !important;
+  }
+
+  .gap-2,
+  .gap-3,
+  .gap-4,
+  .gap-6 {
+    gap: 2px !important;
+  }
+
+  .mb-6,
+  .mb-4 {
+    margin-bottom: 2px !important;
+  }
+
+  .mt-6,
+  .mt-4 {
+    margin-top: 2px !important;
+  }
+
+  /* Explicitly target card headers and content */
+  .card-header,
+  [class*="CardHeader"] {
+    padding: 2px 4px 0px 4px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .card-title,
+  [class*="CardTitle"] {
+    margin-bottom: 0px !important;
+  }
+
+  .card-content,
+  [class*="CardContent"] {
+    padding: 0px 4px 2px 4px !important;
   }
 
   /* Full width content */
@@ -444,7 +534,7 @@ body {
 
   @page {
     size: A4;
-    margin: 1.5cm 1cm 1.5cm 1.5cm;
+    margin: 1cm;
   }
 
   /* Cards: remove border-radius, add light border */
@@ -463,7 +553,7 @@ body {
   th,
   td {
     border: 1px solid #ccc !important;
-    padding: 6px 8px !important;
+    padding: 4px 6px !important;
     font-size: 11px !important;
   }
 
@@ -482,7 +572,12 @@ body {
   /* Stat cards row */
   .stagger-children {
     display: flex !important;
-    gap: 12px !important;
+    gap: 4px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .grid {
+    gap: 2px !important;
   }
 
   /* Print header */

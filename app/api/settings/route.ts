@@ -12,8 +12,9 @@ export async function GET() {
         if (hasPostgres()) {
             const { sql } = await import('@vercel/postgres');
             const classResult = await sql`
-                SELECT name, school_year AS "schoolYear", teacher_name AS "teacherName",
-                       COALESCE(semesters, '[]') AS semesters, logo, print_logo AS "printLogo", COALESCE(authorized_students, '[]') AS authorized_students
+                SELECT name, school_name AS "schoolName", school_year AS "schoolYear", teacher_name AS "teacherName",
+                       COALESCE(semesters, '[]') AS semesters, logo, print_logo AS "printLogo", COALESCE(authorized_students, '[]') AS authorized_students,
+                       alert_threshold AS "alertThreshold", COALESCE(heatmap_thresholds, '[1,3,5]') AS "heatmapThresholds"
                 FROM class_info WHERE id = 1
             `;
             const thresholdResult = await sql`
@@ -26,8 +27,8 @@ export async function GET() {
 
             const raw = classResult.rows[0];
             const classInfo = raw
-                ? { name: raw.name, schoolYear: raw.schoolYear, teacherName: raw.teacherName, semesters: typeof raw.semesters === 'string' ? JSON.parse(raw.semesters) : raw.semesters, logo: raw.logo, printLogo: raw.printLogo ?? true, authorizedStudents: typeof raw.authorized_students === 'string' ? JSON.parse(raw.authorized_students) : raw.authorized_students }
-                : { name: '', schoolYear: '', teacherName: '', semesters: [], logo: null, printLogo: true, authorizedStudents: [] };
+                ? { name: raw.name, schoolName: raw.schoolName || '', schoolYear: raw.schoolYear, teacherName: raw.teacherName, semesters: typeof raw.semesters === 'string' ? JSON.parse(raw.semesters) : raw.semesters, logo: raw.logo, printLogo: raw.printLogo ?? true, authorizedStudents: typeof raw.authorized_students === 'string' ? JSON.parse(raw.authorized_students) : raw.authorized_students, alertThreshold: raw.alertThreshold ?? 2, heatmapThresholds: typeof raw.heatmapThresholds === 'string' ? JSON.parse(raw.heatmapThresholds) : (raw.heatmapThresholds || [1, 3, 5]) }
+                : { name: '', schoolName: '', schoolYear: '', teacherName: '', semesters: [], logo: null, printLogo: true, authorizedStudents: [], alertThreshold: 2, heatmapThresholds: [1, 3, 5] };
 
             const tr = thresholdResult.rows[0];
             const thresholds = tr ? {
@@ -51,7 +52,7 @@ export async function GET() {
     } catch (error) {
         console.error('GET /api/settings error:', error);
         return NextResponse.json({
-            classInfo: { name: '', schoolYear: '', teacherName: '', semesters: [], logo: null, printLogo: true, authorizedStudents: [] },
+            classInfo: { name: '', schoolName: '', schoolYear: '', teacherName: '', semesters: [], logo: null, printLogo: true, authorizedStudents: [], alertThreshold: 2, heatmapThresholds: [1, 3, 5] },
             thresholds: {
                 weekly: { tot: 90, kha: 70, dat: 50 },
                 monthly: { tot: 360, kha: 280, dat: 200 },
@@ -67,21 +68,23 @@ export async function PUT(req: NextRequest) {
         const { type } = body;
 
         if (type === 'classInfo') {
-            const { name, schoolName, schoolYear, teacherName, semesters, logo, printLogo, authorizedStudents } = body.data;
+            const { name, schoolName, schoolYear, teacherName, semesters, logo, printLogo, authorizedStudents, alertThreshold, heatmapThresholds } = body.data;
             const semestersJson = JSON.stringify(semesters || []);
             const authJson = JSON.stringify(authorizedStudents || []);
+            const heatJson = JSON.stringify(heatmapThresholds || [1, 3, 5]);
             const printLogoVal = printLogo ?? true;
+            const alertThreshVal = alertThreshold ?? 2;
             if (hasPostgres()) {
                 const { sql } = await import('@vercel/postgres');
                 await sql`
-                    INSERT INTO class_info (id, name, school_name, school_year, teacher_name, semesters, logo, print_logo, authorized_students)
-                    VALUES (1, ${name}, ${schoolName || ''}, ${schoolYear}, ${teacherName}, ${semestersJson}, ${logo || null}, ${printLogoVal}, ${authJson})
+                    INSERT INTO class_info (id, name, school_name, school_year, teacher_name, semesters, logo, print_logo, authorized_students, alert_threshold, heatmap_thresholds)
+                    VALUES (1, ${name}, ${schoolName || ''}, ${schoolYear}, ${teacherName}, ${semestersJson}, ${logo || null}, ${printLogoVal}, ${authJson}, ${alertThreshVal}, ${heatJson})
                     ON CONFLICT (id) DO UPDATE SET
                         name = ${name}, school_name = ${schoolName || ''}, school_year = ${schoolYear},
-                        teacher_name = ${teacherName}, semesters = ${semestersJson}, logo = ${logo || null}, print_logo = ${printLogoVal}, authorized_students = ${authJson}
+                        teacher_name = ${teacherName}, semesters = ${semestersJson}, logo = ${logo || null}, print_logo = ${printLogoVal}, authorized_students = ${authJson}, alert_threshold = ${alertThreshVal}, heatmap_thresholds = ${heatJson}
                 `;
             } else {
-                getStore().class_info = { name, schoolName: schoolName || '', schoolYear, teacherName, semesters, logo, printLogo: printLogoVal, authorizedStudents };
+                getStore().class_info = { name, schoolName: schoolName || '', schoolYear, teacherName, semesters, logo, printLogo: printLogoVal, authorizedStudents, alertThreshold: alertThreshVal, heatmapThresholds: heatmapThresholds || [1, 3, 5] };
             }
         } else if (type === 'thresholds') {
             const { weekly, monthly, semester } = body.data;

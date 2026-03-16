@@ -68,6 +68,15 @@ export async function changeUsername(id: string, newUsername: string): Promise<b
     return res.ok;
 }
 
+export async function changeAvatar(id: string, avatar: string | null): Promise<boolean> {
+    const res = await fetch('/api/auth', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'changeAvatar', id, avatar }),
+    });
+    return res.ok;
+}
+
 // ── Session management ──
 
 export async function login(username: string, password: string): Promise<AuthSession | null> {

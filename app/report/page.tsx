@@ -492,12 +492,12 @@ export default function ReportPage() {
     if (!ready) return null
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="space-y-6 print:space-y-0 print:gap-1 max-w-7xl mx-auto flex flex-col">
             {ToastComponent}
 
             {/* Print header — hidden on screen, visible on print */}
-            <div className="print-header" style={{ display: 'none' }}>
-                <div className="print-header-top flex justify-between items-start mb-6">
+            <div className="print-header hidden print:block">
+                <div className="print-header-top flex justify-between items-start mb-4">
                     {/* Left: Logo + School Info */}
                     <div className="flex items-center gap-4">
                         {classInfo.logo && <img src={classInfo.logo} alt="Logo" className="w-20 h-20 object-contain" />}
@@ -515,13 +515,13 @@ export default function ReportPage() {
                 </div>
 
                 {/* Center Title */}
-                <div className="text-center mb-6">
+                <div className="text-center mb-4">
                     <h1 className="text-xl font-bold m-0 uppercase leading-tight">SỔ THEO DÕI NỀ NẾP ĐIỆN TỬ</h1>
                     <h2 className="text-lg font-bold m-0 uppercase leading-tight mt-1">BÁO CÁO NỀ NẾP LỚP {classInfo.name} ĐỊNH KỲ</h2>
                 </div>
 
                 {/* Meta Information */}
-                <div className="flex justify-between items-end mb-4 text-sm italic">
+                <div className="flex justify-between items-end mb-2 text-sm italic">
                     <div>
                         <p className="m-0 leading-tight">Giáo viên chủ nhiệm: <span className="font-bold cursor-text">{classInfo.teacherName}</span></p>
                         <p className="m-0 leading-tight mt-1">Thời gian: {format(new Date(startDate), 'dd/MM/yyyy')} — {format(new Date(endDate), 'dd/MM/yyyy')}</p>
@@ -790,8 +790,8 @@ export default function ReportPage() {
             {
                 (attendanceStats.totalAbsent > 0 || attendance.length > 0) && (
                     <Card className="animate-slide-up" style={{ animationDelay: '120ms' }}>
-                        <CardHeader>
-                            <CardTitle className="text-base flex items-center gap-2">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2 print:pb-0 print:mb-0">
+                            <CardTitle className="text-base flex items-center gap-2 print:text-sm">
                                 <ClipboardCheck className="h-4 w-4 text-indigo-500" />
                                 Thống kê Điểm danh
                                 <span className="text-xs font-normal text-slate-400 ml-1">(trong khoảng thời gian đã chọn)</span>
@@ -841,8 +841,8 @@ export default function ReportPage() {
             {
                 !teamFilter && teams.length > 0 && filteredLogs.length > 0 && (
                     <Card className="animate-slide-up" style={{ animationDelay: '150ms' }}>
-                        <CardHeader>
-                            <CardTitle className="text-base flex items-center gap-2">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2 print:pb-0 print:mb-0">
+                            <CardTitle className="text-base flex items-center gap-2 print:text-sm">
                                 <Users className="h-4 w-4 text-indigo-500" />
                                 Tổng hợp theo tổ
                             </CardTitle>
@@ -1111,8 +1111,8 @@ export default function ReportPage() {
             {
                 subjectBreakdown.size > 0 && (
                     <Card className="animate-slide-up" style={{ animationDelay: '350ms' }}>
-                        <CardHeader>
-                            <CardTitle className="text-base">Tổng hợp theo môn học</CardTitle>
+                        <CardHeader className="print:pb-0 print:mb-0">
+                            <CardTitle className="text-base print:text-sm">Tổng hợp theo môn học</CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
@@ -1158,8 +1158,8 @@ export default function ReportPage() {
             }
 
             {/* Print footer: Signatures */}
-            <div className="print-footer no-screen page-break-inside-avoid">
-                <div className="print-signatures">
+            <div className="print-footer hidden print:block page-break-inside-avoid mt-6">
+                <div className="flex justify-between">
                     <div></div>
                     <div className="text-center">
                         <p className="italic mb-1">{format(new Date(), "'Ngày' dd 'tháng' MM 'năm' yyyy")}</p>
