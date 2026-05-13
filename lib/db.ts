@@ -41,6 +41,14 @@ export async function ensureLatestSchema() {
             await sql`ALTER TABLE log_entries ADD COLUMN session TEXT`;
         }
 
+        // Ensure log_entries has appeal columns
+        const checkAppealStatus = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='log_entries' AND column_name='appeal_status'`;
+        if (checkAppealStatus.rowCount === 0) {
+            await sql`ALTER TABLE log_entries ADD COLUMN appeal_status TEXT DEFAULT 'none'`;
+            await sql`ALTER TABLE log_entries ADD COLUMN appeal_reason TEXT`;
+            await sql`ALTER TABLE log_entries ADD COLUMN appeal_response TEXT`;
+        }
+
         // Ensure accounts has 'avatar' column
         const checkAccAvatar = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='avatar'`;
         if (checkAccAvatar.rowCount === 0) {

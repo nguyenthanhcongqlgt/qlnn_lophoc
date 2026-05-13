@@ -14,7 +14,8 @@ export async function GET() {
             const { sql } = await import('@vercel/postgres');
             const { rows } = await sql`
                 SELECT id, student_id AS "studentId", type, content, point,
-                       date, timestamp, subject, session, period, status, reject_reason AS "rejectReason", created_by AS "createdBy"
+                       date, timestamp, subject, session, period, status, reject_reason AS "rejectReason", created_by AS "createdBy",
+                       appeal_status AS "appealStatus", appeal_reason AS "appealReason", appeal_response AS "appealResponse"
                 FROM log_entries ORDER BY timestamp DESC
             `;
             return NextResponse.json(rows);
@@ -100,6 +101,9 @@ export async function PUT(req: NextRequest) {
             if (data.status !== undefined) await sql`UPDATE log_entries SET status = ${data.status} WHERE id = ${id}`;
             if (data.rejectReason !== undefined) await sql`UPDATE log_entries SET reject_reason = ${data.rejectReason} WHERE id = ${id}`;
             if (data.createdBy !== undefined) await sql`UPDATE log_entries SET created_by = ${data.createdBy} WHERE id = ${id}`;
+            if (data.appealStatus !== undefined) await sql`UPDATE log_entries SET appeal_status = ${data.appealStatus} WHERE id = ${id}`;
+            if (data.appealReason !== undefined) await sql`UPDATE log_entries SET appeal_reason = ${data.appealReason} WHERE id = ${id}`;
+            if (data.appealResponse !== undefined) await sql`UPDATE log_entries SET appeal_response = ${data.appealResponse} WHERE id = ${id}`;
         } else {
             const store = getStore();
             if (store.log_entries[id]) {

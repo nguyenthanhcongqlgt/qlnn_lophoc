@@ -15,6 +15,8 @@ export interface Student {
 
 export type LogType = 'violation' | 'achievement';
 
+export type AppealStatus = 'none' | 'pending' | 'resolved' | 'rejected';
+
 export interface LogEntry {
   id: string;
   studentId: string;
@@ -29,6 +31,9 @@ export interface LogEntry {
   status?: 'pending' | 'approved' | 'rejected'; // Trạng thái duyệt
   rejectReason?: string; // Lý do từ chối
   createdBy?: string; // Người tạo phiếu
+  appealStatus?: AppealStatus; // Trạng thái khiếu nại
+  appealReason?: string; // Nội dung khiếu nại của học sinh
+  appealResponse?: string; // Phản hồi từ GVCN khi từ chối khiếu nại
 }
 
 export interface IncidentType {

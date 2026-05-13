@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { initializeData, getStudentsWithScores, getLogs, getStudents, getClassInfo, getGradeThresholds } from '@/lib/storage'
+import { Dialog } from '@/components/ui/dialog'
+import { useToast } from '@/components/ui/toast'
+import { initializeData, getStudentsWithScores, getLogs, getStudents, getClassInfo, getGradeThresholds, updateLog } from '@/lib/storage'
 import { LogEntry, StudentWithScore, GradeThresholds, getConductGrade, DEFAULT_GRADE_THRESHOLDS, ConductGradeName } from '@/types'
-import { Users, AlertTriangle, Award, TrendingUp, TrendingDown, Clock, GraduationCap, CalendarDays, BellPlus, Trophy } from 'lucide-react'
+import { Users, AlertTriangle, Award, TrendingUp, TrendingDown, Clock, GraduationCap, CalendarDays, BellPlus, Trophy, MessageSquareWarning } from 'lucide-react'
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useAuth } from '@/lib/auth-context'
 
 export default function Dashboard() {
     const [students, setStudents] = useState<StudentWithScore[]>([])
@@ -17,6 +20,13 @@ export default function Dashboard() {
     const [alertThreshold, setAlertThreshold] = useState(2)
     const [heatmapThresholds, setHeatmapThresholds] = useState<number[]>([1, 3, 5])
     const [ready, setReady] = useState(false)
+
+    // Appeal state
+    const [appealTarget, setAppealTarget] = useState<LogEntry | null>(null)
+    const [appealReason, setAppealReason] = useState('')
+
+    const { showToast, ToastComponent } = useToast()
+    const { user } = useAuth()
 
     useEffect(() => {
         initializeData()
@@ -37,6 +47,24 @@ export default function Dashboard() {
             setReady(true)
         })
     }, [])
+
+    const handleSubmitAppeal = async () => {
+        if (!appealTarget) return
+        if (!appealReason.trim()) {
+            showToast('Vui lòng nhập nội dung khiếu nại!', 'error')
+            return
+        }
+        await updateLog(appealTarget.id, {
+            appealStatus: 'pending',
+            appealReason: appealReason.trim(),
+        } as any)
+        showToast('Đã gửi khiếu nại thành công! GVCN sẽ xem xét và phản hồi.')
+        setAppealTarget(null)
+        setAppealReason('')
+        // Refresh logs
+        const logsData = await getLogs()
+        setLogs(logsData)
+    }
 
     if (!ready) return null
 
@@ -102,6 +130,7 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
+            {ToastComponent}
             {/* Header */}
             <div className="animate-fade-in flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
@@ -336,6 +365,11 @@ export default function Dashboard() {
                         <div className="space-y-3">
                             {recentLogs.map(log => {
                                 const student = students.find(s => s.id === log.studentId)
+                                const isOwnLog = user?.role === 'student' && user?.studentId === log.studentId
+                                const canAppeal = isOwnLog && (!log.appealStatus || log.appealStatus === 'none')
+                                const appealPending = log.appealStatus === 'pending'
+                                const appealResolved = log.appealStatus === 'resolved'
+                                const appealRejected = log.appealStatus === 'rejected'
                                 return (
                                     <div key={log.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 transition-colors">
                                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${log.type === 'violation' ? 'bg-red-400' : 'bg-emerald-400'}`} />
@@ -345,10 +379,34 @@ export default function Dashboard() {
                                                 {' — '}
                                                 <span>{log.content}</span>
                                             </p>
+                                            {/* Appeal status badges */}
+                                            {appealPending && (
+                                                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                                                    <MessageSquareWarning className="h-3 w-3" /> Đang chờ xử lý khiếu nại
+                                                </p>
+                                            )}
+                                            {appealResolved && (
+                                                <p className="text-xs text-emerald-600 mt-1">✓ Khiếu nại đã được giải quyết</p>
+                                            )}
+                                            {appealRejected && (
+                                                <p className="text-xs text-red-500 mt-1" title={log.appealResponse ? `Phản hồi: ${log.appealResponse}` : ''}>
+                                                    ✗ Khiếu nại bị từ chối{log.appealResponse ? `: ${log.appealResponse}` : ''}
+                                                </p>
+                                            )}
                                         </div>
                                         <Badge variant={log.type === 'violation' ? 'danger' : 'success'}>
                                             {log.point > 0 ? '+' : ''}{log.point}đ
                                         </Badge>
+                                        {canAppeal && (
+                                            <button
+                                                onClick={() => { setAppealTarget(log); setAppealReason('') }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 transition-colors shrink-0"
+                                                title="Khiếu nại phiếu này"
+                                            >
+                                                <MessageSquareWarning className="h-3.5 w-3.5" />
+                                                Khiếu nại
+                                            </button>
+                                        )}
                                         <span className="text-xs font-semibold text-slate-400 flex-shrink-0 bg-slate-100/80 px-2 py-1 flex items-center rounded-md">
                                             {formatDate(log.date)}
                                         </span>
@@ -359,6 +417,46 @@ export default function Dashboard() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Appeal Dialog */}
+            <Dialog
+                open={!!appealTarget}
+                onClose={() => setAppealTarget(null)}
+                title="Khiếu nại phiếu nề nếp"
+                maxWidth="max-w-md"
+            >
+                {appealTarget && (
+                    <div className="space-y-4">
+                        <div className="bg-slate-50 rounded-xl p-3 text-sm space-y-1">
+                            <p className="text-slate-600"><strong>Mã phiếu:</strong> {appealTarget.id}</p>
+                            <p className="text-slate-600"><strong>Nội dung:</strong> {appealTarget.content}</p>
+                            <p className="text-slate-600"><strong>Điểm:</strong> <span className={appealTarget.point < 0 ? 'text-red-600 font-bold' : 'text-emerald-600 font-bold'}>{appealTarget.point > 0 ? '+' : ''}{appealTarget.point}đ</span></p>
+                            <p className="text-slate-600"><strong>Ngày:</strong> {formatDate(appealTarget.date)}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Nội dung khiếu nại <span className="text-red-500">*</span></label>
+                            <textarea
+                                value={appealReason}
+                                onChange={(e) => setAppealReason(e.target.value)}
+                                placeholder="Hãy mô tả lý do bạn muốn khiếu nại phiếu nề nếp này..."
+                                className="input-field min-h-[120px] resize-y"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button onClick={() => setAppealTarget(null)}
+                                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+                                Huỷ
+                            </button>
+                            <button onClick={handleSubmitAppeal}
+                                className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+                                <MessageSquareWarning className="h-4 w-4" />
+                                Gửi khiếu nại
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Dialog>
         </div>
     )
 }

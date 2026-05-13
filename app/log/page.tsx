@@ -12,7 +12,7 @@ import {
 import { Student, IncidentType, LogEntry, Subject, SESSIONS, PERIODS } from '@/types'
 import {
     AlertTriangle, Award, Check, Calendar, Users, Zap, BookOpen,
-    Clock, Hash, Pencil, Trash2, History, Save, X
+    Clock, Hash, Pencil, Trash2, History, Save, X, MessageSquareWarning, Filter
 } from 'lucide-react'
 import { sortByName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -68,6 +68,14 @@ export default function LogPage() {
     // Reject confirm
     const [rejectTarget, setRejectTarget] = useState<LogEntry | null>(null)
     const [rejectReason, setRejectReason] = useState('')
+
+    // Log filter
+    type LogFilter = 'all' | 'violation' | 'achievement' | 'appeal'
+    const [logFilter, setLogFilter] = useState<LogFilter>('all')
+
+    // Appeal reject
+    const [appealRejectTarget, setAppealRejectTarget] = useState<LogEntry | null>(null)
+    const [appealRejectResponse, setAppealRejectResponse] = useState('')
 
     const { showToast, ToastComponent } = useToast()
     const { user, can } = useAuth()
@@ -579,14 +587,37 @@ export default function LogPage() {
                 recentLogs.length > 0 && (
                     <Card className="animate-slide-up" style={{ animationDelay: '400ms' }}>
                         <CardHeader>
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <History className="h-4 w-4 text-indigo-500" />
-                                Phiếu nề nếp gần đây ({recentLogs.length})
-                            </CardTitle>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <History className="h-4 w-4 text-indigo-500" />
+                                    Phiếu nề nếp gần đây ({recentLogs.length})
+                                </CardTitle>
+                                <div className="flex p-1 bg-slate-100 rounded-xl flex-wrap gap-0.5">
+                                    {([['all', 'Tất cả'], ['violation', 'Vi phạm'], ['achievement', 'Việc tốt'], ['appeal', 'Khiếu nại']] as [LogFilter, string][]).map(([val, label]) => (
+                                        <button
+                                            key={val}
+                                            onClick={() => setLogFilter(val)}
+                                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${logFilter === val ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            {val === 'appeal' && recentLogs.some(l => l.appealStatus === 'pending') && (
+                                                <span className="inline-flex w-2 h-2 rounded-full bg-amber-400 mr-1.5 animate-pulse" />
+                                            )}
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="divide-y divide-slate-100">
-                                {recentLogs.map(log => (
+                                {recentLogs
+                                    .filter(log => {
+                                        if (logFilter === 'violation') return log.type === 'violation'
+                                        if (logFilter === 'achievement') return log.type === 'achievement'
+                                        if (logFilter === 'appeal') return log.appealStatus === 'pending'
+                                        return true
+                                    })
+                                    .map(log => (
                                     <div key={log.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 hover:bg-slate-50/80 transition-colors group">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
@@ -616,12 +647,30 @@ export default function LogPage() {
                                                 {log.session && <span>• {log.session} T{log.period}</span>}
                                                 {log.createdBy && <span className="hidden sm:inline">• Tạo bởi: {log.createdBy}</span>}
                                             </div>
+                                            {/* Appeal info for GVCN */}
+                                            {log.appealStatus === 'pending' && log.appealReason && (
+                                                <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs">
+                                                    <p className="font-semibold text-amber-700 flex items-center gap-1.5">
+                                                        <MessageSquareWarning className="h-3.5 w-3.5" />
+                                                        Học sinh khiếu nại:
+                                                    </p>
+                                                    <p className="text-amber-800 mt-1 italic">“{log.appealReason}”</p>
+                                                </div>
+                                            )}
+                                            {log.appealStatus === 'resolved' && (
+                                                <p className="text-xs text-emerald-600 mt-1">✓ Khiếu nại đã được giải quyết</p>
+                                            )}
+                                            {log.appealStatus === 'rejected' && (
+                                                <p className="text-xs text-red-500 mt-1" title={log.appealResponse ? `Phản hồi: ${log.appealResponse}` : ''}>
+                                                    ✗ Khiếu nại bị từ chối{log.appealResponse ? `: ${log.appealResponse}` : ''}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
                                             <span className={`text-sm font-bold shrink-0 ${log.point < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                                 {log.point > 0 ? '+' : ''}{log.point}đ
                                             </span>
-                                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                                 {canApprove && log.status === 'pending' && (
                                                     <>
                                                         <button onClick={() => handleApprove(log.id, 'approved')}
@@ -635,6 +684,27 @@ export default function LogPage() {
                                                             title="Từ chối">
                                                             <X className="h-3.5 w-3.5" />
                                                             <span className="hidden sm:inline">Từ chối</span>
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {/* Appeal action buttons for GVCN */}
+                                                {canApprove && log.appealStatus === 'pending' && (
+                                                    <>
+                                                        <button onClick={async () => {
+                                                            await deleteLog(log.id)
+                                                            showToast('Đã chấp nhận khiếu nại (Xoá phiếu thành công)!')
+                                                            refresh()
+                                                        }}
+                                                            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition-colors"
+                                                            title="Chấp nhận khiếu nại (Xoá phiếu)">
+                                                            <Check className="h-3.5 w-3.5" />
+                                                            <span className="hidden sm:inline">Chấp nhận</span>
+                                                        </button>
+                                                        <button onClick={() => { setAppealRejectTarget(log); setAppealRejectResponse('') }}
+                                                            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 transition-colors"
+                                                            title="Từ chối khiếu nại">
+                                                            <X className="h-3.5 w-3.5" />
+                                                            <span className="hidden sm:inline">Từ chối KN</span>
                                                         </button>
                                                     </>
                                                 )}
@@ -801,6 +871,62 @@ export default function LogPage() {
                             Huỷ
                         </button>
                         <button onClick={confirmReject}
+                            className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
+                            Xác nhận Từ chối
+                        </button>
+                    </div>
+                </div>
+            </Dialog>
+
+            {/* Appeal Reject Dialog */}
+            <Dialog
+                open={!!appealRejectTarget}
+                onClose={() => setAppealRejectTarget(null)}
+                title="Từ chối khiếu nại"
+                maxWidth="max-w-md"
+            >
+                <div className="space-y-4">
+                    <div className="bg-slate-50 rounded-xl p-3 text-sm space-y-1">
+                        <p className="text-slate-600"><strong>Mã phiếu:</strong> {appealRejectTarget?.id}</p>
+                        <p className="text-slate-600"><strong>Học sinh:</strong> {appealRejectTarget ? getStudentName(appealRejectTarget.studentId) : ''}</p>
+                        <p className="text-slate-600"><strong>Nội dung:</strong> {appealRejectTarget?.content}</p>
+                    </div>
+                    {appealRejectTarget?.appealReason && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs">
+                            <p className="font-semibold text-amber-700">Lý do khiếu nại của học sinh:</p>
+                            <p className="text-amber-800 mt-1 italic">&ldquo;{appealRejectTarget.appealReason}&rdquo;</p>
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Lý do từ chối khiếu nại <span className="text-red-500">*</span></label>
+                        <textarea
+                            value={appealRejectResponse}
+                            onChange={(e) => setAppealRejectResponse(e.target.value)}
+                            placeholder="Nhập lý do từ chối khiếu nại..."
+                            className="input-field min-h-[100px] resize-y"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button onClick={() => setAppealRejectTarget(null)}
+                            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+                            Huỷ
+                        </button>
+                        <button onClick={async () => {
+                            if (!appealRejectTarget) return
+                            if (!appealRejectResponse.trim()) {
+                                showToast('Vui lòng nhập lý do từ chối!', 'error')
+                                return
+                            }
+                            await updateLog(appealRejectTarget.id, {
+                                appealStatus: 'rejected',
+                                appealResponse: appealRejectResponse.trim(),
+                            } as any)
+                            showToast('Đã từ chối khiếu nại!')
+                            setAppealRejectTarget(null)
+                            setAppealRejectResponse('')
+                            refresh()
+                        }}
                             className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
                             Xác nhận Từ chối
                         </button>

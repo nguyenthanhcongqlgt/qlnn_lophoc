@@ -9,12 +9,12 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog, Dialog } from '@/components/ui/dialog'
 import {
-    initializeData, getStudentsWithScores, getLogs, deleteLog, getStudents, getClassInfo, getGradeThresholds, getAttendance
+    initializeData, getStudentsWithScores, getLogs, deleteLog, getStudents, getClassInfo, getGradeThresholds, getAttendance, updateLog
 } from '@/lib/storage'
 import { LogEntry, StudentWithScore, ClassInfo, Semester, GradeThresholds, getConductGrade, DEFAULT_GRADE_THRESHOLDS, AttendanceRecord } from '@/types'
 import {
     Calendar, Download, AlertTriangle, Award, TrendingDown, Trash2,
-    CalendarDays, CalendarRange, GraduationCap, X, Users, Filter, User, Printer, FileSpreadsheet, BookOpen, Contact, ChevronLeft, ChevronRight, ClipboardCheck, Sun, Moon
+    CalendarDays, CalendarRange, GraduationCap, X, Users, Filter, User, Printer, FileSpreadsheet, BookOpen, Contact, ChevronLeft, ChevronRight, ClipboardCheck, Sun, Moon, MessageSquareWarning
 } from 'lucide-react'
 import { sortByName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -140,7 +140,12 @@ export default function ReportPage() {
 
     const [deleteTarget, setDeleteTarget] = useState<LogEntry | null>(null)
 
+    // Appeal state
+    const [appealTarget, setAppealTarget] = useState<LogEntry | null>(null)
+    const [appealReason, setAppealReason] = useState('')
+
     const { showToast, ToastComponent } = useToast()
+    const { user, can } = useAuth()
 
     useEffect(() => {
         initializeData()
@@ -176,7 +181,22 @@ export default function ReportPage() {
         }
     }
 
-    const { user, can } = useAuth()
+    const handleSubmitAppeal = async () => {
+        if (!appealTarget) return
+        if (!appealReason.trim()) {
+            showToast('Vui lòng nhập nội dung khiếu nại!', 'error')
+            return
+        }
+        await updateLog(appealTarget.id, {
+            ...appealTarget,
+            appealStatus: 'pending',
+            appealReason: appealReason.trim(),
+        })
+        showToast('Đã gửi khiếu nại thành công! GVCN sẽ xem xét và phản hồi.')
+        setAppealTarget(null)
+        setAppealReason('')
+        refresh()
+    }
 
     // Compute date range based on selected time range
     const { startDate, endDate } = useMemo(() => {
@@ -939,37 +959,73 @@ export default function ReportPage() {
                                             Không có dữ liệu trong khoảng thời gian này
                                         </TableCell>
                                     </TableRow>
-                                ) : paginatedLogs.map(log => (
-                                    <TableRow key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                                        <TableCell className="text-sm text-slate-600 whitespace-nowrap">
-                                            {format(new Date(log.date), 'dd/MM/yyyy')}
-                                        </TableCell>
-                                        <TableCell className="font-medium text-slate-800 whitespace-nowrap">
-                                            {getStudentName(log.studentId)}
-                                        </TableCell>
-                                        <TableCell className="text-sm text-slate-600 max-w-[200px] md:max-w-[300px] truncate" title={log.content}>
-                                            {log.content}
-                                        </TableCell>
-                                        <TableCell className="text-sm text-slate-500 hidden md:table-cell break-words">{log.subject || '—'}</TableCell>
-                                        <TableCell className="text-sm text-slate-500 hidden lg:table-cell break-words">
-                                            {log.session && log.period ? `${log.session} / T${log.period}` : '—'}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <span className={`font-bold ${log.point < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                {log.point > 0 ? '+' : ''}{log.point}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <button
-                                                onClick={() => setDeleteTarget(log)}
-                                                className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors no-print"
-                                                title="Xoá"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                ) : paginatedLogs.map(log => {
+                                    const isOwnLog = user?.role === 'student' && user?.studentId === log.studentId
+                                    const canAppeal = isOwnLog && (!log.appealStatus || log.appealStatus === 'none')
+                                    const appealPending = log.appealStatus === 'pending'
+                                    const appealResolved = log.appealStatus === 'resolved'
+                                    const appealRejected = log.appealStatus === 'rejected'
+                                    
+                                    return (
+                                        <TableRow key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                                            <TableCell className="text-sm text-slate-600 whitespace-nowrap">
+                                                {format(new Date(log.date), 'dd/MM/yyyy')}
+                                            </TableCell>
+                                            <TableCell className="font-medium text-slate-800 whitespace-nowrap">
+                                                {getStudentName(log.studentId)}
+                                            </TableCell>
+                                            <TableCell className="text-sm text-slate-600 max-w-[200px] md:max-w-[300px] truncate" title={log.content}>
+                                                <div className="flex flex-col gap-1">
+                                                    <span>{log.content}</span>
+                                                    {appealPending && (
+                                                        <span className="text-xs text-amber-600 flex items-center gap-1">
+                                                            <MessageSquareWarning className="h-3 w-3" /> Đang chờ xử lý khiếu nại
+                                                        </span>
+                                                    )}
+                                                    {appealResolved && (
+                                                        <span className="text-xs text-emerald-600">✓ KN đã giải quyết</span>
+                                                    )}
+                                                    {appealRejected && (
+                                                        <span className="text-xs text-red-500" title={log.appealResponse}>
+                                                            ✗ KN bị từ chối
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-sm text-slate-500 hidden md:table-cell break-words">{log.subject || '—'}</TableCell>
+                                            <TableCell className="text-sm text-slate-500 hidden lg:table-cell break-words">
+                                                {log.session && log.period ? `${log.session} / T${log.period}` : '—'}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <span className={`font-bold ${log.point < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                    {log.point > 0 ? '+' : ''}{log.point}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1 justify-end">
+                                                    {canAppeal && (
+                                                        <button
+                                                            onClick={() => { setAppealTarget(log); setAppealReason('') }}
+                                                            className="p-1.5 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-colors no-print"
+                                                            title="Khiếu nại phiếu này"
+                                                        >
+                                                            <MessageSquareWarning className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                    {(user?.role === 'teacher' || user?.canCreateLog) && (
+                                                        <button
+                                                            onClick={() => setDeleteTarget(log)}
+                                                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors no-print"
+                                                            title="Xoá"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
                             </TableBody>
                         </Table>
                     </div>
@@ -1234,6 +1290,45 @@ export default function ReportPage() {
                 message={`Bạn có chắc chắn muốn xoá bản ghi "${deleteTarget?.content}"?`}
                 confirmText="Xoá"
             />
+            {/* Appeal Dialog */}
+            <Dialog
+                open={!!appealTarget}
+                onClose={() => setAppealTarget(null)}
+                title="Khiếu nại phiếu nề nếp"
+                maxWidth="max-w-md"
+            >
+                {appealTarget && (
+                    <div className="space-y-4">
+                        <div className="bg-slate-50 rounded-xl p-3 text-sm space-y-1">
+                            <p className="text-slate-600"><strong>Mã phiếu:</strong> {appealTarget.id}</p>
+                            <p className="text-slate-600"><strong>Nội dung:</strong> {appealTarget.content}</p>
+                            <p className="text-slate-600"><strong>Điểm:</strong> <span className={appealTarget.point < 0 ? 'text-red-600 font-bold' : 'text-emerald-600 font-bold'}>{appealTarget.point > 0 ? '+' : ''}{appealTarget.point}đ</span></p>
+                            <p className="text-slate-600"><strong>Ngày:</strong> {format(new Date(appealTarget.date), 'dd/MM/yyyy')}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Nội dung khiếu nại <span className="text-red-500">*</span></label>
+                            <textarea
+                                value={appealReason}
+                                onChange={(e) => setAppealReason(e.target.value)}
+                                placeholder="Hãy mô tả lý do bạn muốn khiếu nại phiếu nề nếp này..."
+                                className="input-field min-h-[120px] resize-y"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button onClick={() => setAppealTarget(null)}
+                                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+                                Huỷ
+                            </button>
+                            <button onClick={handleSubmitAppeal}
+                                className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+                                <MessageSquareWarning className="h-4 w-4" />
+                                Gửi khiếu nại
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Dialog>
         </div >
     )
 }
