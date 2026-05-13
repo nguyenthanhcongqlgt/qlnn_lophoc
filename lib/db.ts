@@ -23,59 +23,40 @@ export async function ensureLatestSchema() {
         // 2. Perform light migrations (Adding missing columns to existing tables)
 
         // Ensure attendance has 'session' column (if it was created by an older version)
-        await sql`
-            DO $$ 
-            BEGIN 
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='attendance' AND column_name='session') THEN
-                    ALTER TABLE attendance ADD COLUMN session TEXT NOT NULL DEFAULT 'morning' CHECK (session IN ('morning', 'afternoon'));
-                END IF;
-            END $$;
-        `;
+        const checkAttSession = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='attendance' AND column_name='session'`;
+        if (checkAttSession.rowCount === 0) {
+            await sql`ALTER TABLE attendance ADD COLUMN session TEXT NOT NULL DEFAULT 'morning' CHECK (session IN ('morning', 'afternoon'))`;
+        }
 
         // Ensure attendance unique constraint includes session
-        await sql`
-            DO $$
-            BEGIN
-                ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_student_id_date_key;
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'attendance_student_id_date_session_key') THEN
-                    ALTER TABLE attendance ADD CONSTRAINT attendance_student_id_date_session_key UNIQUE (student_id, date, session);
-                END IF;
-            EXCEPTION WHEN OTHERS THEN NULL; 
-            END $$;
-        `;
+        const checkAttConstraint = await sql`SELECT 1 FROM pg_constraint WHERE conname = 'attendance_student_id_date_session_key'`;
+        if (checkAttConstraint.rowCount === 0) {
+            await sql`ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_student_id_date_key`;
+            await sql`ALTER TABLE attendance ADD CONSTRAINT attendance_student_id_date_session_key UNIQUE (student_id, date, session)`;
+        }
 
         // Ensure log_entries has 'session' column
-        await sql`
-            DO $$ 
-            BEGIN 
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='log_entries' AND column_name='session') THEN
-                    ALTER TABLE log_entries ADD COLUMN session TEXT;
-                END IF;
-            END $$;
-        `;
+        const checkLogSession = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='log_entries' AND column_name='session'`;
+        if (checkLogSession.rowCount === 0) {
+            await sql`ALTER TABLE log_entries ADD COLUMN session TEXT`;
+        }
 
         // Ensure accounts has 'avatar' column
-        await sql`
-            DO $$ 
-            BEGIN 
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='avatar') THEN
-                    ALTER TABLE accounts ADD COLUMN avatar TEXT;
-                END IF;
-            END $$;
-        `;
+        const checkAccAvatar = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='avatar'`;
+        if (checkAccAvatar.rowCount === 0) {
+            await sql`ALTER TABLE accounts ADD COLUMN avatar TEXT`;
+        }
 
         // Ensure class_info has config columns
-        await sql`
-            DO $$ 
-            BEGIN 
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='class_info' AND column_name='alert_threshold') THEN
-                    ALTER TABLE class_info ADD COLUMN alert_threshold INTEGER DEFAULT 2;
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='class_info' AND column_name='heatmap_thresholds') THEN
-                    ALTER TABLE class_info ADD COLUMN heatmap_thresholds TEXT DEFAULT '[1,3,5]';
-                END IF;
-            END $$;
-        `;
+        const checkClassAlert = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='class_info' AND column_name='alert_threshold'`;
+        if (checkClassAlert.rowCount === 0) {
+            await sql`ALTER TABLE class_info ADD COLUMN alert_threshold INTEGER DEFAULT 2`;
+        }
+        
+        const checkClassHeatmap = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='class_info' AND column_name='heatmap_thresholds'`;
+        if (checkClassHeatmap.rowCount === 0) {
+            await sql`ALTER TABLE class_info ADD COLUMN heatmap_thresholds TEXT DEFAULT '[1,3,5]'`;
+        }
 
         // 3. Ensure default teacher account and settings exist
         await sql`
